@@ -1,60 +1,6 @@
-/*
-Leet CSGO Server Plugin
-
-Base URLs:
-api-dot-1337coin.appspot.com - Known working API
-apitest-dot-1337coin.appspot.com - Bleeding edge API
-
-General Flow:
-
-Server is started
-Server settings is asked for from the Leet API
-/api/get_server_info
-Code example available on API docs
-Returns JSON with information on minimum hold for a player, promo server, allowing non authorized players, server rake, leet rake and balance increments
-
-Player Enters 
-User's ID is converted into Steam64 and kept in an array of players, this is referred to in the docs at the platformID
-Request made to Leet API to attempt to activate the player
-/api/activate_player
-If non authorized players are allowed (from the server settings) then it doesn’t matter if it returns back as true for player_authorized, if not though then the player should be kicked for not being authorized
-Settings for the player are included in the response as well
-
-On Player Death
-If both players is authorized 
-Add incrementBTC - leetCoinRake and serverRake percentages to killer
-Decrease by incrementBTC for loser
-If both players authorized and isPromo
-Add incrementBTC - leetCoinRake and serverRake percentages to killer
-Don’t decrease for loser
-If one or both of the players is not authorized
-Do nothing
-Add this information to the number of kills and deaths for each player to be submitted to the server
-If the players server balance is below the minimum balance for the server kick the player
-
-Submitting match results
-Should have a counter to do it every 30 seconds
-Submit based on array of players and kills and deaths, all real math is done server side 
-/api/put_match_results
-Returns back a list of steam64 ID to kick for balance being too low/etc
-
-Issuing awards
-Based on certain events (such as killing a chicken is our example) players can be given awards from the server rake amounts
-/api/issue_award
-It returns whether the award_authorized and if it's true add to the the balance of the player 
-
-Deactivate Player
-If a player is kicked or they choose to exit the leet api should be told the player is leaving the server
-/api/deactivate_player
-
-Chicken death
-One feature we have on our promo server is we give an award if the player kills a chicken in game 
-This would use the Issue Award function you would build earlier and give 100 satoshi 
-
-*/
-
 #pragma semicolon 1
 
+#include <string>
 #include <sourcemod>
 #include <sdktools>
 #include <SteamWorks>
@@ -62,7 +8,7 @@ This would use the Issue Award function you would build earlier and give 100 sat
 #include <cURL>
 
 //Uncomment to enable debug mode.
-//#define DEBUG
+#define DEBUG
 
 #define PLUGIN_NAME		"Leet GG"
 #define PLUGIN_AUTHOR	"Leetcoin Team"
@@ -81,7 +27,8 @@ This would use the Issue Award function you would build earlier and give 100 sat
 #define API_URL_DEACTIVATE_PLAYER	"/api/deactivate_player"
 
 Handle hConVars[2];
-bool cv_bStatus; char cv_sAPIKey[256] = "gUNXh9MVyn5RpDXbP4kTEl91IxdJRM";
+bool cv_bStatus; 
+char cv_sAPIKey[256];
 
 bool bServerSetup;
 
@@ -132,7 +79,7 @@ public void OnPluginStart()
 	
 	HookEvent("player_death", OnPlayerDeath);
 	
-	RegAdminCmd("sm_chicken", OnSpawnChicken, ADMFLAG_ROOT, "Spawn a chicken where you\'re looking.");
+	RegAdminCmd("sm_chicken", OnSpawnChicken, ADMFLAG_ROOT, "Spawn a chicken where youre looking.");
 	
 	CreateTimer(30.0, SubmitPlayerInformation, _, TIMER_REPEAT);
 	
@@ -153,6 +100,8 @@ public void OnConfigsExecuted()
 	if (strlen(cv_sAPIKey) == 0)
 	{
 		Leet_Log("Error retrieving server information, API key is missing.");
+		Leet_Log("Goose.");
+		Leet_Log("%s", cv_sAPIKey);
 		bServerSetup = false;
 		return;
 	}
@@ -160,7 +109,7 @@ public void OnConfigsExecuted()
 	Leet_Log("Requesting server information...");
 	
 	char sURL[512];
-	Format(sURL, sizeof(sURL), "%s%s", TEST_URL, API_URL_GET_SERVER_INFO);
+	Format(sURL, sizeof(sURL), "%s%s", API_URL, API_URL_GET_SERVER_INFO);
 	
 	Handle hRequest = SteamWorks_CreateHTTPRequest(k_EHTTPMethodPOST, sURL);
 	
@@ -212,6 +161,7 @@ public int OnPullingServerInfo(Handle hRequest, bool bFailure, bool bRequestSucc
 	
 	char[] sBuffer = new char[size];
 	SteamWorks_GetHTTPResponseBodyData(hRequest, sBuffer, size);
+	Leet_Log("Json string: %s ",sBuffer);
 	
 	Handle hJSON = json_load(sBuffer);
 	g_minimumBTCHold = json_object_get_int(hJSON, "minimumBTCHold");
@@ -253,7 +203,7 @@ public void OnClientAuthorized(int client, const char[] sAuth)
 	iCommunityID[client] = StringToInt(sCommunityID);
 	
 	char sURL[512];
-	Format(sURL, sizeof(sURL), "%s%s", TEST_URL, API_URL_ACTIVATE_PLAYER);
+	Format(sURL, sizeof(sURL), "%s%s", API_URL, API_URL_ACTIVATE_PLAYER);
 	
 	Handle hRequest = SteamWorks_CreateHTTPRequest(k_EHTTPMethodPOST, sURL);
 	
@@ -367,7 +317,7 @@ public void OnClientDisconnect(int client)
 	iStatsDeaths[client] = 0;
 	
 	char sURL[512];
-	Format(sURL, sizeof(sURL), "%s%s", TEST_URL, API_URL_DEACTIVATE_PLAYER);
+	Format(sURL, sizeof(sURL), "%s%s", API_URL, API_URL_DEACTIVATE_PLAYER);
 	
 	Handle hRequest = SteamWorks_CreateHTTPRequest(k_EHTTPMethodPOST, sURL);
 	
@@ -499,7 +449,7 @@ public Action SubmitPlayerInformation(Handle timer, any data)
 	}
 	
 	char sURL[512];
-	Format(sURL, sizeof(sURL), "%s%s", TEST_URL, API_URL_PUT_MATCH_RESULTS);
+	Format(sURL, sizeof(sURL), "%s%s", API_URL, API_URL_PUT_MATCH_RESULTS);
 	
 	Handle hRequest = SteamWorks_CreateHTTPRequest(k_EHTTPMethodPOST, sURL);
 	
@@ -624,7 +574,7 @@ void IssuePlayerAward(int client, int amount, const char[] sReason)
 	}
 	
 	char sURL[512];
-	Format(sURL, sizeof(sURL), "%s%s", TEST_URL, API_URL_PUT_MATCH_RESULTS);
+	Format(sURL, sizeof(sURL), "%s%s", API_URL, API_URL_PUT_MATCH_RESULTS);
 	
 	Handle hRequest = SteamWorks_CreateHTTPRequest(k_EHTTPMethodPOST, sURL);
 	
