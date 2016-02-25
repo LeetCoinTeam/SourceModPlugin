@@ -62,7 +62,7 @@ This would use the Issue Award function you would build earlier and give 100 sat
 #include <cURL>
 
 //Uncomment to enable debug mode.
-#define DEBUG	1
+//#define DEBUG
 
 #define PLUGIN_NAME		"Leet GG"
 #define PLUGIN_AUTHOR	"Leetcoin Team"
