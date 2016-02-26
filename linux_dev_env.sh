@@ -1,4 +1,10 @@
 #!/bin/bash
+#==============================================================================
+#title           :linux_dev_env.sh
+#description     :Installs a dev environment for sourcemod on ubuntu 14.04 64
+#author		 :Andrew Donley
+#date            :20160225
+#==============================================================================
 # Check if root for apt-get, exit if not
 if [ "$(id -u)" != "0" ]; then
         echo "Sorry, you are not root."

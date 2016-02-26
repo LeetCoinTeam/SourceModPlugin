@@ -16,7 +16,8 @@
 #define PLUGIN_VERSION	"1.0.0"
 #define PLUGIN_URL		"http://www.leet.gg/"
 
-#define API_URL			"api-dot-1337coin.appspot.com"
+//#define API_URL			"api-dot-1337coin.appspot.com"
+#define API_URL			"http://apitest-dot-1337coin.appspot.com/"
 #define API_URL_BLEED	"apitest-dot-1337coin.appspot.com"
 #define TEST_URL		"https://www.leet.gg/server/view/agpzfjEzMzdjb2luchMLEgZTZXJ2ZXIYgICA9MD-_gsM"
 
@@ -26,9 +27,10 @@
 #define API_URL_ISSUE_AWARD			"/api/issue_award"
 #define API_URL_DEACTIVATE_PLAYER	"/api/deactivate_player"
 
-Handle hConVars[2];
+Handle hConVars[3];
 bool cv_bStatus; 
 char cv_sAPIKey[256];
+char cv_sServerSecret[256];
 
 bool bServerSetup;
 
@@ -75,7 +77,8 @@ public void OnPluginStart()
 	CreateConVar("leet_gg_version", PLUGIN_VERSION, PLUGIN_DES, FCVAR_REPLICATED | FCVAR_NOTIFY | FCVAR_SPONLY | FCVAR_DONTRECORD);
 	
 	hConVars[0] = CreateConVar("sm_leetgg_status", "1", "Status of the plugin.", FCVAR_NOTIFY, true, 0.0, true, 1.0);
-	hConVars[1] = CreateConVar("sm_leetgg_api", "", "API key to use.", FCVAR_PROTECTED);
+	hConVars[1] = CreateConVar("sm_leetgg_api", "", "Server API key to use.", FCVAR_PROTECTED);
+	hConVars[2] = CreateConVar("sm_leetgg_sever_secret", "", "Server Secret to use", FCVAR_PROTECTED);
 	
 	HookEvent("player_death", OnPlayerDeath);
 	
@@ -89,7 +92,8 @@ public void OnPluginStart()
 public void OnConfigsExecuted()
 {
 	cv_bStatus = GetConVarBool(hConVars[0]);
-	GetConVarString(hConVars[1], cv_sAPIKey, sizeof(cv_sAPIKey));
+	GetConVarString(hConVars[1], cv_sAPIKey, 256);
+	GetConVarString(hConVars[2], cv_sServerSecret, 256);
 	
 	if (!cv_bStatus)
 	{
@@ -97,11 +101,11 @@ public void OnConfigsExecuted()
 		return;
 	}
 	
-	if (strlen(cv_sAPIKey) == 0)
+	if (strlen(cv_sAPIKey) == 0 || strlen(cv_sServerSecret) == 0)
 	{
-		Leet_Log("Error retrieving server information, API key is missing.");
-		Leet_Log("Goose.");
-		Leet_Log("%s", cv_sAPIKey);
+		Leet_Log("Error retrieving server information, API key or Server secret is missing.");
+		Leet_Log("Api Key: %s", cv_sAPIKey);
+		Leet_Log("Server Secret: %s", cv_sServerSecret);
 		bServerSetup = false;
 		return;
 	}
@@ -117,10 +121,15 @@ public void OnConfigsExecuted()
 	
 	char sTime[128];
 	FloatToString(fTime, sTime, sizeof(sTime));
+	
+	Leet_Log("%s", sTime);
+
 	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "nonce", sTime);
 	
 	char sHash[2048];
-	curl_hash_string(sTime, sizeof(sTime), Openssl_Hash_SHA512, sHash, sizeof(sHash));
+	curl_hash_string(cv_sServerSecret, strlen(cv_sServerSecret), Openssl_Hash_SHA512, sHash, sizeof(sHash));
+	//ToHex(sHash);
+	Leet_Log("Signed Hash: %s",sHash);
 	
 	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Content-type", "application/x-www-form-urlencoded");
 	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Key", cv_sAPIKey);
@@ -138,6 +147,7 @@ public int OnPullingServerInfo(Handle hRequest, bool bFailure, bool bRequestSucc
 		Leet_Log("Error retrieving server information. Error code: %i", view_as<int>(eStatusCode));
 		#if defined DEBUG
 		Leet_DebugLog("Pulling server information failure:\n-bFailure = %s\n-bRequestSuccessful = %s\n-eStatusCode = %i", bFailure ? "True" : "False", bRequestSuccessful ? "True" : "False", view_as<int>(eStatusCode));
+		Leet_Log("Request %s", hRequest);
 		#endif
 		return;
 	}
@@ -782,6 +792,24 @@ void Leet_DebugLog(const char[] format, any...)
 	LogToFileEx(path, "%s", buffer);
 }
 #endif
+
+void ToHex(const char[] str)
+{
+	char buffer[4096];
+	char hex_chars[17] = "0123456789ABCDEF";
+
+	for( int i = str[0]; i < strlen(str); ++i )
+	{
+		int j = 2*i;
+    		char byte = str[i];
+   		buffer[j]= hex_chars[ ( byte & 0xF0 ) >> 4 ];
+		PrintToServer("%02x", buffer[j]);
+    		buffer[j+1] = hex_chars[ ( byte & 0x0F ) >> 0 ];
+		PrintToServer("%02x", buffer[j+1]);
+	}
+	PrintToServer("\n");
+
+}
 
 //1600
 void CalculateEloRank(int client, int loser, int new_winner_rank, int new_loser_rank, bool penalize_loser = true)
