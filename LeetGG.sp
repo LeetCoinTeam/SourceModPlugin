@@ -6,6 +6,7 @@
 #include <SteamWorks>
 #include <smjansson>
 #include <cURL>
+#include <Leet>
 
 //Uncomment to enable debug mode.
 #define DEBUG
@@ -17,7 +18,7 @@
 #define PLUGIN_URL		"http://www.leet.gg/"
 
 //#define API_URL			"api-dot-1337coin.appspot.com"
-#define API_URL			"http://apitest-dot-1337coin.appspot.com/"
+#define API_URL			"http://apitest-dot-1337coin.appspot.com"
 #define API_URL_BLEED	"apitest-dot-1337coin.appspot.com"
 #define TEST_URL		"https://www.leet.gg/server/view/agpzfjEzMzdjb2luchMLEgZTZXJ2ZXIYgICA9MD-_gsM"
 
@@ -121,20 +122,17 @@ public void OnConfigsExecuted()
 	
 	char sTime[128];
 	FloatToString(fTime, sTime, sizeof(sTime));
-	
-	Leet_Log("%s", sTime);
+	char params[4096];
+	Format(params, sizeof(params), "nonce=%s", sTime);
 
 	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "nonce", sTime);
 	
 	char sHash[2048];
-	curl_hash_string(cv_sServerSecret, strlen(cv_sServerSecret), Openssl_Hash_SHA512, sHash, sizeof(sHash));
-	//ToHex(sHash);
-	Leet_Log("Signed Hash: %s",sHash);
+	digest_string_with_key(cv_sServerSecret, params, sHash, 2048);
 	
 	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Content-type", "application/x-www-form-urlencoded");
 	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Key", cv_sAPIKey);
 	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Sign", sHash);
-	
 	SteamWorks_SetHTTPCallbacks(hRequest, OnPullingServerInfo);
 	SteamWorks_SendHTTPRequest(hRequest);
 }
@@ -214,6 +212,8 @@ public void OnClientAuthorized(int client, const char[] sAuth)
 	
 	char sURL[512];
 	Format(sURL, sizeof(sURL), "%s%s", API_URL, API_URL_ACTIVATE_PLAYER);
+
+	Leet_Log("On client authorized.");
 	
 	Handle hRequest = SteamWorks_CreateHTTPRequest(k_EHTTPMethodPOST, sURL);
 	
@@ -223,12 +223,15 @@ public void OnClientAuthorized(int client, const char[] sAuth)
 	FloatToString(fTime, sTime, sizeof(sTime));
 	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "nonce", sTime);
 	
-	char sHash[2048];
-	curl_hash_string(sTime, sizeof(sTime), Openssl_Hash_SHA512, sHash, sizeof(sHash));
-	
 	char sAuthID[128];
 	GetClientAuthId(client, AuthId_SteamID64, sAuthID, sizeof(sAuthID));
 	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "platformid", sAuthID);
+
+	char params[4096];
+	Format(params, sizeof(params), "nonce=%s&platformid=%s", sTime, sAuthID); 
+	
+	char sHash[2048];
+	digest_string_with_key(cv_sServerSecret, params, sHash, 2048);	
 	
 	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Content-type", "application/x-www-form-urlencoded");
 	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Key", cv_sAPIKey);
@@ -298,7 +301,7 @@ public int OnPullingClientInfo(Handle hRequest, bool bFailure, bool bRequestSucc
 	g_player_previously_active[client] = json_object_get_bool(hJSON, "player_previously_active");
 	g_player_rank[client] = json_object_get_int(hJSON, "player_rank");
 	g_player_authorized[client] = json_object_get_bool(hJSON, "player_authorized");
-	json_object_get_string(hJSON, "g_default_currency_conversion", g_default_currency_conversion[client], 64);
+	//json_object_get_string(hJSON, "g_default_currency_conversion", g_default_currency_conversion[client], 64);
 	json_object_get_string(hJSON, "default_currency_display", g_default_currency_display[client], 32);
 	g_authorization_client[client] = json_object_get_bool(hJSON, "authorization");
 	
@@ -316,6 +319,9 @@ public int OnPullingClientInfo(Handle hRequest, bool bFailure, bool bRequestSucc
 
 public void OnClientDisconnect(int client)
 {
+
+	Leet_Log("On client disconnect.");
+
 	if (!cv_bStatus || !bServerSetup)
 	{
 		return;
@@ -337,12 +343,16 @@ public void OnClientDisconnect(int client)
 	FloatToString(fTime, sTime, sizeof(sTime));
 	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "nonce", sTime);
 	
-	char sHash[2048];
-	curl_hash_string(sTime, sizeof(sTime), Openssl_Hash_SHA512, sHash, sizeof(sHash));
-	
 	char sAuthID[128];
 	GetClientAuthId(client, AuthId_SteamID64, sAuthID, sizeof(sAuthID));
 	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "platformid", sAuthID);
+
+	char params[4096];
+	Format(params, sizeof(params), "nonce=%s&platformid=%s", sTime, sAuthID); 
+	
+	char sHash[2048];
+	digest_string_with_key(cv_sServerSecret, params, sHash, 2048);	
+	
 	
 	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Content-type", "application/x-www-form-urlencoded");
 	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Key", cv_sAPIKey);
@@ -512,8 +522,12 @@ public Action SubmitPlayerInformation(Handle timer, any data)
 	
 	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "player_dict_list", sMapname);
 
+	char params[10000];
+	Format(params, sizeof(params), "player_dict_list=%s", sJSONList); 
+	
 	char sHash[2048];
-	curl_hash_string(sTime, sizeof(sTime), Openssl_Hash_SHA512, sHash, sizeof(sHash));
+	digest_string_with_key(cv_sServerSecret, params, sHash, 2048);	
+
 	
 	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Content-type", "application/x-www-form-urlencoded");
 	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Key", cv_sAPIKey);
@@ -610,11 +624,14 @@ void IssuePlayerAward(int client, int amount, const char[] sReason)
 	
 	char sAward[2048];
 	json_dump(hArray, sAward, sizeof(sAward));
+
+	char params[10000];
+	Format(params, sizeof(params), "award=%s", sAward); 
+	
+	char sHash[2048];
+	digest_string_with_key(cv_sServerSecret, params, sHash, 2048);	
 	
 	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "award", sAward);
-
-	char sHash[2048];
-	curl_hash_string(sTime, sizeof(sTime), Openssl_Hash_SHA512, sHash, sizeof(sHash));
 	
 	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Content-type", "application/x-www-form-urlencoded");
 	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Key", cv_sAPIKey);
@@ -792,24 +809,6 @@ void Leet_DebugLog(const char[] format, any...)
 	LogToFileEx(path, "%s", buffer);
 }
 #endif
-
-void ToHex(const char[] str)
-{
-	char buffer[4096];
-	char hex_chars[17] = "0123456789ABCDEF";
-
-	for( int i = str[0]; i < strlen(str); ++i )
-	{
-		int j = 2*i;
-    		char byte = str[i];
-   		buffer[j]= hex_chars[ ( byte & 0xF0 ) >> 4 ];
-		PrintToServer("%02x", buffer[j]);
-    		buffer[j+1] = hex_chars[ ( byte & 0x0F ) >> 0 ];
-		PrintToServer("%02x", buffer[j+1]);
-	}
-	PrintToServer("\n");
-
-}
 
 //1600
 void CalculateEloRank(int client, int loser, int new_winner_rank, int new_loser_rank, bool penalize_loser = true)
