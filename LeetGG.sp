@@ -5,7 +5,6 @@
 #include <sdktools>
 #include <SteamWorks>
 #include <smjansson>
-#include <cURL>
 #include <Leet>
 
 //Uncomment to enable debug mode.
@@ -59,7 +58,7 @@ char g_default_currency_display[MAXPLAYERS + 1][32];
 bool g_authorization_client[MAXPLAYERS + 1];
 
 int kill_reward;
-int iCommunityID[MAXPLAYERS + 1];
+char iCommunityID[MAXPLAYERS + 1][32];
 int iClientRank[MAXPLAYERS + 1];
 int iStatsKills[MAXPLAYERS + 1];
 int iStatsDeaths[MAXPLAYERS + 1];
@@ -200,7 +199,7 @@ public void OnClientAuthorized(int client, const char[] sAuth)
 		return;
 	}
 	
-	iCommunityID[client] = 0;
+	iCommunityID[client] = "";
 	iClientRank[client] = 0;
 	iStatsKills[client] = 0;
 	iStatsDeaths[client] = 0;
@@ -208,7 +207,8 @@ public void OnClientAuthorized(int client, const char[] sAuth)
 	char sCommunityID[128];
 	GetClientAuthId(client, AuthId_SteamID64, sCommunityID, sizeof(sCommunityID));
 	
-	iCommunityID[client] = StringToInt(sCommunityID);
+	Leet_Log("Community ID one: %s", sCommunityID);
+	strcopy(iCommunityID[client], 32, sCommunityID);
 	
 	char sURL[512];
 	Format(sURL, sizeof(sURL), "%s%s", API_URL, API_URL_ACTIVATE_PLAYER);
@@ -327,7 +327,7 @@ public void OnClientDisconnect(int client)
 		return;
 	}
 	
-	iCommunityID[client] = 0;
+	iCommunityID[client] = "";
 	iClientRank[client] = 0;
 	iStatsKills[client] = 0;
 	iStatsDeaths[client] = 0;
@@ -489,46 +489,54 @@ public Action SubmitPlayerInformation(Handle timer, any data)
 	{
 		if (IsClientInGame(i) && !IsFakeClient(i))
 		{
-			Handle hSingle = json_array(); char sBuffer[1024];
+			Handle hSingle = json_object(); char sBuffer[2048];
 			
 			//PlatformID
-			Format(sBuffer, sizeof(sBuffer), "%i", g_player_platformid[i]);
-			json_array_append_new(hSingle, json_string(sBuffer));
+			Format(sBuffer, sizeof(sBuffer), "%s", iCommunityID[i]);
+			json_object_set_new(hSingle, "platformID", json_string(sBuffer));
 			
 			//Kills
 			Format(sBuffer, sizeof(sBuffer), "%i", iStatsKills[i]);
-			json_array_append_new(hSingle, json_string(sBuffer));
+			json_object_set_new(hSingle, "kills", json_string(sBuffer));
 			
 			//Deaths
 			Format(sBuffer, sizeof(sBuffer), "%i", iStatsDeaths[i]);
-			json_array_append_new(hSingle, json_string(sBuffer));
+			json_object_set_new(hSingle, "deaths", json_string(sBuffer));
 			
 			//Name
 			GetClientName(i, sBuffer, sizeof(sBuffer));
-			json_array_append_new(hSingle, json_string(sBuffer));
+			json_object_set_new(hSingle, "name", json_string(sBuffer));
 			
 			//Rank
 			Format(sBuffer, sizeof(sBuffer), "%i", iClientRank[i]);
-			json_array_append_new(hSingle, json_string(sBuffer));
+			json_object_set_new(hSingle, "rank", json_string(sBuffer));
 			
 			//Weapon
-			Format(sBuffer, sizeof(sBuffer), "N/A");
-			json_array_append_new(hSingle, json_string(sBuffer));
+			new String:sWeaponName[64];
+			GetClientWeapon(i, sWeaponName, sizeof(sWeaponName));
+			json_object_set_new(hSingle, "weapon", json_string(sWeaponName));
+
+			json_array_append(hPlayerArray, hSingle);
 		}
 	}
 	
-	char sJSONList[2048];
+	char sJSONList[10000];
 	json_dump(hPlayerArray, sJSONList, sizeof(sJSONList));
-	
-	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "player_dict_list", sMapname);
+
+	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "player_dict_list", sJSONList);
+
+	char json_escaped[10000];
+	int output_len = url_escape(json_escaped, sizeof(json_escaped), sJSONList);
 
 	char params[10000];
-	Format(params, sizeof(params), "player_dict_list=%s", sJSONList); 
-	
-	char sHash[2048];
-	digest_string_with_key(cv_sServerSecret, params, sHash, 2048);	
+	Format(params, sizeof(params), "nonce=%s&map_title=%s&player_dict_list=", sTime, sMapname); 
+	int len = output_len + strlen(params);
 
-	
+	append_string(params, strlen(params), json_escaped, output_len);
+
+	char sHash[2048];
+	digest_string_with_key_length(cv_sServerSecret, params, sHash, 2048, len);	
+
 	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Content-type", "application/x-www-form-urlencoded");
 	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Key", cv_sAPIKey);
 	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Sign", sHash);
@@ -580,7 +588,7 @@ int CheckAgainstCommunityID(const char[] sCommunityID)
 	{
 		if (IsClientInGame(i) && !IsFakeClient(i))
 		{
-			if (iCommunityID[i] == StringToInt(sCommunityID))
+			if (strcmp(iCommunityID[i], sCommunityID))
 			{
 				return i;
 			}

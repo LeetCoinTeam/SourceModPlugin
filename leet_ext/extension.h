@@ -8,6 +8,7 @@
 #include "smsdk_ext.h"
 #include <stdio.h>
 #include <string.h>
+#include <string>
 #include <openssl/hmac.h>
 #include <openssl/evp.h>
 

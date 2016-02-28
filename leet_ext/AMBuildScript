@@ -261,7 +261,7 @@ class ExtensionConfig(object):
 
   def configure_linux(self, cxx):
     cxx.defines += ['_LINUX', 'POSIX']
-    cxx.linkflags += ['-Wl,--exclude-libs,ALL','-lm', '-lssl', '-lcrypto']
+    cxx.linkflags += ['-Wl,--exclude-libs,ALL','-L../lib/libssl.a', '-L../lib/libcrypto.a', '-lm', '-lssl', '-lcrypto']
     if cxx.vendor == 'gcc':
       cxx.linkflags += ['-static-libgcc']
     elif cxx.vendor == 'clang':
