@@ -87,6 +87,8 @@ public void OnPluginStart()
 	RegAdminCmd("sm_chicken", OnSpawnChicken, ADMFLAG_ROOT, "Spawn a chicken where youre looking.");
 	
 	CreateTimer(30.0, SubmitPlayerInformation, _, TIMER_REPEAT);
+
+	HookEntityOutput("chicken", "OnBreak", OnChickenKill);
 	
 	AutoExecConfig();
 }
@@ -647,14 +649,23 @@ public int OnIssueAward(Handle hRequest, bool bFailure, bool bRequestSuccessful,
 
 public void OnEntityCreated(int entity, const char[] sClassname)
 {
-	if (StrEqual(sClassname, "chicken"))
-	{
+	Leet_Log("entity %s\n", sClassname);
+	if (StrEqual(sClassname, "chicken")) {
+		SetEntPropFloat(entity, Prop_Data, "m_explodeDamage", float(4000));
+		SetEntPropFloat(entity, Prop_Data, "m_explodeRadius", float(4000));
 		HookSingleEntityOutput(entity, "OnBreak", OnChickenKill);
 	}
 }
 
+
 public void OnChickenKill(const char[] output, int caller, int activator, float delay)
 {
+	Leet_Log("On Chicken Kill.");
+	char name[64];
+	GetClientName(activator, name, sizeof(name));
+	PrintToChatAll("%s, otherise known as %s killed a chicken. Not vegan confirmed.", name, g_player_name[activator]);
+	SetEntPropFloat(caller, Prop_Data, "m_explodeDamage", float(1000));
+	SetEntPropFloat(caller, Prop_Data, "m_explodeRadius", float(400));
 	IssuePlayerAward(activator, 100, "Chicken Kill");
 }
 
