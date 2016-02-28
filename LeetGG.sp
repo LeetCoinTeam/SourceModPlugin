@@ -14,7 +14,7 @@
 #define PLUGIN_AUTHOR	"Leetcoin Team"
 #define PLUGIN_DES		"The official Leet.gg plugin for Sourcemod. This plugin takes advantage of our native API."
 #define PLUGIN_VERSION	"1.0.0"
-#define PLUGIN_URL		"http://www.leet.gg/"
+#define PLUGIN_URL		"https://www.leet.gg/"
 
 //#define API_URL			"api-dot-1337coin.appspot.com"
 #define API_URL			"http://apitest-dot-1337coin.appspot.com"
