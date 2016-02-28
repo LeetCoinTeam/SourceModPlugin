@@ -443,10 +443,7 @@ public void OnPlayerDeath(Handle event, const char[] name, bool dontBroadcast)
 			}
 			
 			int new_winner_rank; int new_loser_rank;
-			CalculateEloRank(attacker, client, new_winner_rank, new_loser_rank, false);
-			
-			iClientRank[client] = new_loser_rank;
-			iClientRank[attacker] = new_winner_rank;
+			CalculateEloRank(attacker, client, false);
 			
 			if (g_player_btchold[client] < g_minimumBTCHold)
 			{
@@ -819,45 +816,31 @@ void Leet_DebugLog(const char[] format, any...)
 #endif
 
 //1600
-void CalculateEloRank(int client, int loser, int new_winner_rank, int new_loser_rank, bool penalize_loser = true)
+void CalculateEloRank(int winner, int loser, bool penalize_loser = true)
 {
-	int winner_rank = iClientRank[client];
-	int loser_rank = iClientRank[loser];
-	
-	int rank_diff = winner_rank - loser_rank;
+	int winner_rank = iClientRank[winner];
+	int rank_diff = iClientRank[winner] - iClientRank[loser];
 	
 	float exp = (rank_diff * -1) / 400.0;
 	
 	float odds = 1.0 / (1.0 + Pow(10.0, exp));
 	
 	int k;
-	if (winner_rank < 2100)
-	{
+	if (iClientRank[winner] < 2100)
 		k = 32;
-	}
-	else if (winner_rank >= 2100 && winner_rank < 2400)
-	{
+	else if (iClientRank[winner] >= 2100 && iClientRank[winner] < 2400)
 		k = 24;
-	}
 	else
-	{
 		k = 16;
-	}
 	
-	new_winner_rank = RoundFloat(winner_rank + (k * (1 - odds)));
+	iClientRank[winner] = RoundFloat(iClientRank[winner] + (k * (1 - odds)));
 	
 	if (penalize_loser)
 	{
-		int new_rank_diff = new_winner_rank - winner_rank;
-		new_loser_rank = loser_rank - new_rank_diff;
-	}
-	else
-	{
-		new_loser_rank = loser_rank;
+		int new_rank_diff = iClientRank[winner] - winner_rank;
+		iClientRank[loser] -= new_rank_diff;
 	}
 	
-	if (new_loser_rank < 1)
-	{
-		new_loser_rank = 1;
-	}
+	if (iClientRank[loser] < 1)
+		iClientRank[loser] = 1;
 } 
