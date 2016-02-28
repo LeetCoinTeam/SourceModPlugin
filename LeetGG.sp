@@ -58,6 +58,7 @@ char g_default_currency_display[MAXPLAYERS + 1][32];
 bool g_authorization_client[MAXPLAYERS + 1];
 
 int kill_reward;
+float rake;
 char iCommunityID[MAXPLAYERS + 1][32];
 int iClientRank[MAXPLAYERS + 1];
 int iStatsKills[MAXPLAYERS + 1];
@@ -81,12 +82,20 @@ public void OnPluginStart()
 	hConVars[2] = CreateConVar("sm_leetgg_sever_secret", "", "Server Secret to use", FCVAR_PROTECTED);
 	
 	HookEvent("player_death", OnPlayerDeath);
+	HookEvent("round_end", OnRoundEnd);
 	
 	RegAdminCmd("sm_chicken", OnSpawnChicken, ADMFLAG_ROOT, "Spawn a chicken where youre looking.");
 	
 	CreateTimer(30.0, SubmitPlayerInformation, _, TIMER_REPEAT);
 	
 	AutoExecConfig();
+}
+
+public Action OnRoundEnd(Event event, const char[] name, bool dontBroadcast) {
+	for (int i = 1; i <= MaxClients; i++)
+		if (IsClientInGame(i) && !IsFakeClient(i))
+			PrintToChat(i, "Your current balance is: %i satoshi.", g_player_btchold[i]);
+	return Plugin_Continue;
 }
 
 public void OnConfigsExecuted()
@@ -149,20 +158,6 @@ public int OnPullingServerInfo(Handle hRequest, bool bFailure, bool bRequestSucc
 		return;
 	}
 	
-	/*
-		{
-			"minimumBTCHold": 0,
-			"no_death_penalty": true,
-			"allow_non_authorized_players": false,
-			"admissionFee": null,
-			"serverRakeBTCPercentage": 0.0,
-			"api_version": "01B",
-			"incrementBTC": 1000,
-			"leetcoinRakePercentage": 0.0,
-			"authorization": true
-		}
-	*/
-	
 	int size = 0;
 	SteamWorks_GetHTTPResponseBodySize(hRequest, size);
 	
@@ -185,8 +180,8 @@ public int OnPullingServerInfo(Handle hRequest, bool bFailure, bool bRequestSucc
 	Leet_DebugLog("Server information pulled:\n-minimumBTCHold = %i\n-no_death_penalty = %s\n-allow_non_authorized_players = %s\n-admissionFee = %i\n-serverRakeBTCPercentage = %f\n-api_version = %s\n-incrementBTC = %i\n-leetcoinRakePercentage = %f\n-authorization = %s", g_minimumBTCHold, g_no_death_penalty ? "True" : "False", g_allow_non_authorized_players ? "True" : "False", g_admissionFee, g_serverRakeBTCPercentage, g_api_version, g_incrementBTC, g_leetcoinRakePercentage, g_authorization ? "True" : "False");
 	#endif
 	
-	float total_rake = g_serverRakeBTCPercentage + g_leetcoinRakePercentage;
-	kill_reward = RoundToCeil(g_incrementBTC - (g_incrementBTC * total_rake));
+	rake = g_serverRakeBTCPercentage + g_leetcoinRakePercentage;
+	kill_reward = RoundToCeil(g_incrementBTC - (g_incrementBTC * rake));
 	
 	Leet_Log("Server information retrieval successful.");
 	bServerSetup = true;
@@ -227,7 +222,7 @@ public void OnClientAuthorized(int client, const char[] sAuth)
 	GetClientAuthId(client, AuthId_SteamID64, sAuthID, sizeof(sAuthID));
 	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "platformid", sAuthID);
 
-	char params[4096];
+	char params[2048];
 	Format(params, sizeof(params), "nonce=%s&platformid=%s", sTime, sAuthID); 
 	
 	char sHash[2048];
@@ -261,31 +256,6 @@ public int OnPullingClientInfo(Handle hRequest, bool bFailure, bool bRequestSucc
 		#endif
 		return;
 	}
-	/*
-		{
-			"player_btchold": 0,
-			"player_name": "leet-test",
-			"player_platformid": "765611912315782326",
-			"player_key": "agpzfjEzMzdjb2luchMLEgZQbGASDFQFASIYgICAoL6ouwgM",
-			"player_previously_active": false,
-			"player_rank": 1600,
-			"player_authorized": true,
-			"default_currency_conversion": "2.629e-06",
-			"default_currency_display": "USD",
-			"authorization": true
-		}
-		
-		int g_player_btchold[MAXPLAYERS + 1];
-		char g_player_name[MAXPLAYERS + 1][512];
-		char g_player_platformid[MAXPLAYERS + 1][64];
-		char g_player_key[MAXPLAYERS + 1][128];
-		bool g_player_previously_active[MAXPLAYERS + 1];
-		int g_player_rank[MAXPLAYERS + 1];
-		bool g_player_authorized[MAXPLAYERS + 1];
-		char g_default_currency_conversion[MAXPLAYERS + 1][64];
-		char g_default_currency_display[MAXPLAYERS + 1][32];
-		bool g_authorization_client[MAXPLAYERS + 1];
-	*/
 	
 	int size = 0;
 	SteamWorks_GetHTTPResponseBodySize(hRequest, size);
@@ -383,20 +353,6 @@ public int OnDeactivatingPlayer(Handle hRequest, bool bFailure, bool bRequestSuc
 		return;
 	}
 	
-	/*
-		{
-			"player_previously_active": false,
-			"player_authorized": false,
-			"player_key": "agpzfjEzMzdjb2luchMLEgZQbGF5ZXIYgICAoL6ouwgM",
-			"authorization": true
-		}
-		
-		bool g_player_previously_active;
-		bool g_player_authorized;
-		char g_player_key[256];
-		bool g_authorization;
-	*/
-	
 	bool g_player_previously_active2;
 	bool g_player_authorized2;
 	char g_player_key2[256];
@@ -424,9 +380,7 @@ public int OnDeactivatingPlayer(Handle hRequest, bool bFailure, bool bRequestSuc
 public void OnPlayerDeath(Handle event, const char[] name, bool dontBroadcast)
 {
 	if (!cv_bStatus || !bServerSetup)
-	{
 		return;
-	}
 	
 	int client = GetClientOfUserId(GetEventInt(event, "userid"));
 	int attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
@@ -438,17 +392,12 @@ public void OnPlayerDeath(Handle event, const char[] name, bool dontBroadcast)
 			g_player_btchold[attacker] += kill_reward;
 			
 			if (!g_no_death_penalty)
-			{
-				g_player_btchold[client] -= kill_reward;
-			}
+				g_player_btchold[client] -= (kill_reward + rake);
 			
-			int new_winner_rank; int new_loser_rank;
 			CalculateEloRank(attacker, client, false);
 			
 			if (g_player_btchold[client] < g_minimumBTCHold)
-			{
 				KickClient(client, "Your balance is too low to continue playing.  Go to leet.gg to add more btc to your server hold.");
-			}
 			
 			PrintToChatAll("%N earned: %i Satoshi for killing %N", attacker, kill_reward, client);
 		}
@@ -456,6 +405,16 @@ public void OnPlayerDeath(Handle event, const char[] name, bool dontBroadcast)
 		iStatsKills[attacker]++;
 		iStatsDeaths[client]++;
 	}
+}
+
+public Action OnClientSayCommand(int client, const char[] command, const char[] sArgs)
+{
+	if (strcmp(sArgs, "balance", false) == 0 || strcmp(sArgs, "!balance", false) == 0)
+	{
+		PrintToChat(client, "Your current balance is: %i satoshi.", g_player_btchold[client]);
+ 		return Plugin_Handled;
+	}
+	return Plugin_Continue;
 }
 
 public Action SubmitPlayerInformation(Handle timer, any data)
@@ -573,34 +532,23 @@ public int OnSubmittingMatchResults(Handle hRequest, bool bFailure, bool bReques
 		int retrieve = CheckAgainstCommunityID(sBuffer2);
 		
 		if (retrieve > 0)
-		{
 			KickClient(retrieve, "Please go to Leet.gg and register for the server.");
-		}
 	}
 }
 
 int CheckAgainstCommunityID(const char[] sCommunityID)
 {
 	for (int i = 1; i <= MaxClients; i++)
-	{
 		if (IsClientInGame(i) && !IsFakeClient(i))
-		{
 			if (strcmp(iCommunityID[i], sCommunityID))
-			{
 				return i;
-			}
-		}
-	}
-	
 	return 0;
 }
 
 void IssuePlayerAward(int client, int amount, const char[] sReason)
 {
 	if (!cv_bStatus || !bServerSetup)
-	{
 		return;
-	}
 	
 	char sURL[512];
 	Format(sURL, sizeof(sURL), "%s%s", API_URL, API_URL_PUT_MATCH_RESULTS);
@@ -630,7 +578,7 @@ void IssuePlayerAward(int client, int amount, const char[] sReason)
 	char sAward[2048];
 	json_dump(hArray, sAward, sizeof(sAward));
 
-	char params[10000];
+	char params[2048];
 	Format(params, sizeof(params), "award=%s", sAward); 
 	
 	char sHash[2048];
@@ -652,6 +600,8 @@ void IssuePlayerAward(int client, int amount, const char[] sReason)
 	SteamWorks_SetHTTPCallbacks(hRequest, OnIssueAward);
 	SteamWorks_SendHTTPRequest(hRequest);
 }
+
+
 
 public int OnIssueAward(Handle hRequest, bool bFailure, bool bRequestSuccessful, EHTTPStatusCode eStatusCode, any data1)
 {
@@ -711,9 +661,7 @@ public void OnChickenKill(const char[] output, int caller, int activator, float 
 public Action OnSpawnChicken(int client, int args)
 {
 	if (!cv_bStatus || !bServerSetup)
-	{
 		return Plugin_Handled;
-	}
 	
 	float fPos[3];
 	if (!CalculateLookPosition(client, fPos))
@@ -792,9 +740,7 @@ public Action KillEntity(Handle timer, any data)
 	int entity = EntRefToEntIndex(data);
 	
 	if (IsValidEntity(entity))
-	{
 		AcceptEntityInput(entity, "Kill");
-	}
 }
 
 void Leet_Log(const char[] format, any...)
@@ -815,7 +761,6 @@ void Leet_DebugLog(const char[] format, any...)
 }
 #endif
 
-//1600
 void CalculateEloRank(int winner, int loser, bool penalize_loser = true)
 {
 	int winner_rank = iClientRank[winner];
