@@ -58,7 +58,7 @@ char g_default_currency_display[MAXPLAYERS + 1][32];
 bool g_authorization_client[MAXPLAYERS + 1];
 
 int kill_reward;
-float rake;
+int rake;
 char iCommunityID[MAXPLAYERS + 1][32];
 int iClientRank[MAXPLAYERS + 1];
 int iStatsKills[MAXPLAYERS + 1];
@@ -81,12 +81,12 @@ public void OnPluginStart()
 	hConVars[1] = CreateConVar("sm_leetgg_api", "", "Server API key to use.", FCVAR_PROTECTED);
 	hConVars[2] = CreateConVar("sm_leetgg_sever_secret", "", "Server Secret to use", FCVAR_PROTECTED);
 	
-	HookEvent("player_death", OnPlayerDeath);
+	HookEvent("player_death", OnPlayerDeath, EventHookMode_Post);
 	HookEvent("round_end", OnRoundEnd);
 	
 	RegAdminCmd("sm_chicken", OnSpawnChicken, ADMFLAG_ROOT, "Spawn a chicken where youre looking.");
 	
-	CreateTimer(30.0, SubmitPlayerInformation, _, TIMER_REPEAT);
+	//CreateTimer(30.0, SubmitPlayerInformation, _, TIMER_REPEAT);
 
 	HookEntityOutput("chicken", "OnBreak", OnChickenKill);
 	
@@ -182,8 +182,9 @@ public int OnPullingServerInfo(Handle hRequest, bool bFailure, bool bRequestSucc
 	Leet_DebugLog("Server information pulled:\n-minimumBTCHold = %i\n-no_death_penalty = %s\n-allow_non_authorized_players = %s\n-admissionFee = %i\n-serverRakeBTCPercentage = %f\n-api_version = %s\n-incrementBTC = %i\n-leetcoinRakePercentage = %f\n-authorization = %s", g_minimumBTCHold, g_no_death_penalty ? "True" : "False", g_allow_non_authorized_players ? "True" : "False", g_admissionFee, g_serverRakeBTCPercentage, g_api_version, g_incrementBTC, g_leetcoinRakePercentage, g_authorization ? "True" : "False");
 	#endif
 	
-	rake = g_serverRakeBTCPercentage + g_leetcoinRakePercentage;
-	kill_reward = RoundToCeil(g_incrementBTC - (g_incrementBTC * rake));
+	float rake_per = g_serverRakeBTCPercentage + g_leetcoinRakePercentage;
+	rake = RoundToCeil(g_incrementBTC * rake_per);
+	kill_reward = RoundToCeil(g_incrementBTC - (g_incrementBTC * rake_per));
 	
 	Leet_Log("Server information retrieval successful.");
 	bServerSetup = true;
@@ -387,14 +388,18 @@ public void OnPlayerDeath(Handle event, const char[] name, bool dontBroadcast)
 	int client = GetClientOfUserId(GetEventInt(event, "userid"));
 	int attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
 	
+	// TODO: Need to check if it was an entity that killed the player
 	if (client != attacker)
 	{
 		if (g_player_authorized[client] && g_player_authorized[attacker])
 		{
 			g_player_btchold[attacker] += kill_reward;
+			Leet_Log("kill_reward : %i\n", kill_reward);
 			
-			if (!g_no_death_penalty)
+			if (!g_no_death_penalty) {
 				g_player_btchold[client] -= (kill_reward + rake);
+				Leet_Log("Rake: %f\n", rake);
+			}
 			
 			CalculateEloRank(attacker, client, false);
 			
@@ -402,11 +407,14 @@ public void OnPlayerDeath(Handle event, const char[] name, bool dontBroadcast)
 				KickClient(client, "Your balance is too low to continue playing.  Go to leet.gg to add more btc to your server hold.");
 			
 			PrintToChatAll("%N earned: %i Satoshi for killing %N", attacker, kill_reward, client);
+			SubmitKill(attacker, client);
+			
 		}
 		
 		iStatsKills[attacker]++;
 		iStatsDeaths[client]++;
 	}
+	
 }
 
 public Action OnClientSayCommand(int client, const char[] command, const char[] sArgs)
@@ -487,6 +495,106 @@ public Action SubmitPlayerInformation(Handle timer, any data)
 	int output_len = url_escape(json_escaped, sizeof(json_escaped), sJSONList);
 
 	char params[10000];
+	Format(params, sizeof(params), "nonce=%s&map_title=%s&player_dict_list=", sTime, sMapname); 
+	int len = output_len + strlen(params);
+
+	append_string(params, strlen(params), json_escaped, output_len);
+
+	char sHash[2048];
+	digest_string_with_key_length(cv_sServerSecret, params, sHash, 2048, len);	
+
+	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Content-type", "application/x-www-form-urlencoded");
+	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Key", cv_sAPIKey);
+	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Sign", sHash);
+	
+	SteamWorks_SetHTTPCallbacks(hRequest, OnSubmittingMatchResults);
+	SteamWorks_SendHTTPRequest(hRequest);
+	
+	return Plugin_Continue;
+}
+
+public Action SubmitKill(int killer, int victim)
+{
+	if (!cv_bStatus || !bServerSetup)
+	{
+		return Plugin_Continue;
+	}
+	
+	char sURL[512];
+	Format(sURL, sizeof(sURL), "%s%s", API_URL, API_URL_PUT_MATCH_RESULTS);
+	
+	Handle hRequest = SteamWorks_CreateHTTPRequest(k_EHTTPMethodPOST, sURL);
+	
+	float fTime = float(GetTime());
+	
+	char sTime[128];
+	FloatToString(fTime, sTime, sizeof(sTime));
+	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "nonce", sTime);
+	
+	char sMapname[64];
+	GetCurrentMap(sMapname, sizeof(sMapname));
+	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "map_title", sMapname);
+	
+	Handle hPlayerArray = json_array();
+	
+	if (IsClientInGame(killer) && !IsFakeClient(killer) 
+	    && IsClientInGame(victim) && !IsFakeClient(victim))
+	{
+		Handle hKiller = json_object(); 
+		Handle hVictim = json_object(); 
+		char sBuffer[1024];
+		
+		//PlatformID
+		Format(sBuffer, sizeof(sBuffer), "%s", iCommunityID[killer]);
+		json_object_set_new(hKiller, "platformID", json_string(sBuffer));
+		Format(sBuffer, sizeof(sBuffer), "%s", iCommunityID[victim]);
+		json_object_set_new(hVictim, "platformID", json_string(sBuffer));
+		
+		//Kills
+		Format(sBuffer, sizeof(sBuffer), "%i", 1);
+		json_object_set_new(hKiller, "kills", json_string(sBuffer));
+		Format(sBuffer, sizeof(sBuffer), "%i", 0);
+		json_object_set_new(hVictim, "kills", json_string(sBuffer));
+			
+		//Deaths
+		Format(sBuffer, sizeof(sBuffer), "%i", 0);
+		json_object_set_new(hKiller, "deaths", json_string(sBuffer));
+		Format(sBuffer, sizeof(sBuffer), "%i", 1);
+		json_object_set_new(hVictim, "deaths", json_string(sBuffer));
+			
+		//Name
+		GetClientName(killer, sBuffer, sizeof(sBuffer));
+		json_object_set_new(hKiller, "name", json_string(sBuffer));
+		GetClientName(victim, sBuffer, sizeof(sBuffer));
+		json_object_set_new(hVictim, "name", json_string(sBuffer));
+			
+		//Rank
+		Format(sBuffer, sizeof(sBuffer), "%i", iClientRank[killer]);
+		json_object_set_new(hKiller, "rank", json_string(sBuffer));
+		Format(sBuffer, sizeof(sBuffer), "%i", iClientRank[victim]);
+		json_object_set_new(hVictim, "rank", json_string(sBuffer));
+			
+		//Weapon
+		new String:sWeaponName[64];
+		GetClientWeapon(killer, sWeaponName, sizeof(sWeaponName));
+		json_object_set_new(hKiller, "weapon", json_string(sWeaponName));
+		GetClientWeapon(victim, sWeaponName, sizeof(sWeaponName));
+		json_object_set_new(hVictim, "weapon", json_string(sWeaponName));
+
+		json_array_append(hPlayerArray, hKiller);
+		json_array_append(hPlayerArray, hVictim);
+	}
+	
+	char sJSONList[2048];
+	json_dump(hPlayerArray, sJSONList, sizeof(sJSONList));
+
+	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "player_dict_list", sJSONList);
+
+	char json_escaped[2048];
+	int output_len = url_escape(json_escaped, sizeof(json_escaped), sJSONList);
+	Leet_Log("Submitted Kill: %s\n", json_escaped);
+
+	char params[2048];
 	Format(params, sizeof(params), "nonce=%s&map_title=%s&player_dict_list=", sTime, sMapname); 
 	int len = output_len + strlen(params);
 
@@ -662,11 +770,11 @@ public void OnChickenKill(const char[] output, int caller, int activator, float 
 {
 	Leet_Log("On Chicken Kill.");
 	char name[64];
-	GetClientName(activator, name, sizeof(name));
-	PrintToChatAll("%s, otherise known as %s killed a chicken. Not vegan confirmed.", name, g_player_name[activator]);
-	SetEntPropFloat(caller, Prop_Data, "m_explodeDamage", float(1000));
-	SetEntPropFloat(caller, Prop_Data, "m_explodeRadius", float(400));
-	IssuePlayerAward(activator, 100, "Chicken Kill");
+	if(!GetClientName(activator, name, sizeof(name)))
+		PrintToChatAll("%s, otherise known as %s killed a chicken. Not vegan confirmed.", name, g_player_name[activator]);
+	//SetEntPropFloat(caller, Prop_Data, "m_explodeDamage", float(20));
+	//SetEntPropFloat(caller, Prop_Data, "m_explodeRadius", float(10000));
+	//IssuePlayerAward(activator, 100, "Chicken Kill");
 }
 
 public Action OnSpawnChicken(int client, int args)
