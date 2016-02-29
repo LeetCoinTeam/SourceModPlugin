@@ -596,6 +596,7 @@ public Action SubmitKill(int killer, int victim)
 
 	char params[2048];
 	Format(params, sizeof(params), "nonce=%s&map_title=%s&player_dict_list=", sTime, sMapname); 
+			
 	int len = output_len + strlen(params);
 
 	append_string(params, strlen(params), json_escaped, output_len);
@@ -661,7 +662,7 @@ void IssuePlayerAward(int client, int amount, const char[] sReason)
 		return;
 	
 	char sURL[512];
-	Format(sURL, sizeof(sURL), "%s%s", API_URL, API_URL_PUT_MATCH_RESULTS);
+	Format(sURL, sizeof(sURL), "%s%s", API_URL, API_URL_ISSUE_AWARD);
 	
 	Handle hRequest = SteamWorks_CreateHTTPRequest(k_EHTTPMethodPOST, sURL);
 	
@@ -671,30 +672,37 @@ void IssuePlayerAward(int client, int amount, const char[] sReason)
 	FloatToString(fTime, sTime, sizeof(sTime));
 	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "nonce", sTime);
 	
-	Handle hArray = json_array(); char sBuffer[1024];
-	
-	Format(sBuffer, sizeof(sBuffer), "%i", g_player_platformid[client]);
-	json_array_append_new(hArray, json_string(sBuffer));
-	
-	GetClientName(client, sBuffer, sizeof(sBuffer));
-	json_array_append_new(hArray, json_string(sBuffer));
-	
+	Handle hObject = json_object(); char sBuffer[512];
+
+	// playerKey
+	Format(sBuffer, sizeof(sBuffer), "%s", g_player_key[client]);
+	json_object_set_new(hObject, "playerKey", json_string(sBuffer));
+			
+	// name
+	Format(sBuffer, sizeof(sBuffer), "%s", g_player_name[client]);
+	json_object_set_new(hObject, "playerName", json_string(sBuffer));
+
 	Format(sBuffer, sizeof(sBuffer), "%i", amount);
-	json_array_append_new(hArray, json_string(sBuffer));
+	json_object_set_new(hObject, "amount", json_string(sBuffer));
 	
 	Format(sBuffer, sizeof(sBuffer), "%s", sReason);
-	json_array_append_new(hArray, json_string(sBuffer));
-	
-	char sAward[2048];
-	json_dump(hArray, sAward, sizeof(sAward));
+	json_object_set_new(hObject, "title", json_string(sBuffer));
 
-	char params[2048];
-	Format(params, sizeof(params), "award=%s", sAward); 
+	char sJSONString[512];
+	json_dump(hObject, sJSONString, sizeof(sJSONString));
+	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "award", sJSONString);
 	
+	char json_escaped[1024];
+	int output_len = url_escape(json_escaped, sizeof(json_escaped), sJSONString);
+
+	char params[1024];
+	Format(params, sizeof(params), "nonce=%s&award=", sTime); 
+	int len = output_len + strlen(params);
+
+	output_len = append_string(params, strlen(params), json_escaped, output_len);
+
 	char sHash[2048];
-	digest_string_with_key(cv_sServerSecret, params, sHash, 2048);	
-	
-	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "award", sAward);
+	digest_string_with_key_length(cv_sServerSecret, params, sHash, 2048, output_len);	
 	
 	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Content-type", "application/x-www-form-urlencoded");
 	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Key", cv_sAPIKey);
@@ -715,7 +723,7 @@ void IssuePlayerAward(int client, int amount, const char[] sReason)
 
 public int OnIssueAward(Handle hRequest, bool bFailure, bool bRequestSuccessful, EHTTPStatusCode eStatusCode, any data1)
 {
-	ResetPack(data1);
+	/* ResetPack(data1);
 	
 	int client = GetClientOfUserId(ReadPackCell(data1));
 	int amount = ReadPackCell(data1);
@@ -724,18 +732,19 @@ public int OnIssueAward(Handle hRequest, bool bFailure, bool bRequestSuccessful,
 	ReadPackString(data1, sReason, sizeof(sReason));
 	
 	CloseHandle(data1);
-	
+ 		
 	if (client < 1)
 	{
 		Leet_Log("Error issuing a reward to a client, client index is invalid.");
 		return;
 	}
-	
+ 	*/	
 	if (bFailure || !bRequestSuccessful)
 	{
-		Leet_Log("Error issuing a reward to the client '%L'. Error code: %i", client, view_as<int>(eStatusCode));
+		//Leet_Log("Error issuing a reward to the client '%L'. Error code: %i", client, view_as<int>(eStatusCode));
+		//Leet_Log("Error issuing a reward to the client Error code: %i", view_as<int>(eStatusCode));
 		#if defined DEBUG
-		Leet_DebugLog("Pulling client rewards issued failure for %L:\n-bFailure = %s\n-bRequestSuccessful = %s\n-eStatusCode = %i", client, bFailure ? "True" : "False", bRequestSuccessful ? "True" : "False", view_as<int>(eStatusCode));
+		//Leet_DebugLog("Pulling client rewards issued failure for %L:\n-bFailure = %s\n-bRequestSuccessful = %s\n-eStatusCode = %i", client, bFailure ? "True" : "False", bRequestSuccessful ? "True" : "False", view_as<int>(eStatusCode));
 		#endif
 		return;
 	}
@@ -750,8 +759,12 @@ public int OnIssueAward(Handle hRequest, bool bFailure, bool bRequestSuccessful,
 	
 	if (json_object_get_bool(hJSON, "award_authorized"))
 	{
-		g_player_btchold[client] += amount;
-		PrintToChatAll("%N earned: %i Satoshi for: %s", client, amount, sReason);
+		//g_player_btchold[client] += amount;
+		//PrintToChatAll("%N earned: %i Satoshi for: %s", client, amount, sReason);
+		Leet_Log("Awarded player for chicken kill.");
+	}
+	else {
+		Leet_Log("Did not award player for chickenkill.");
 	}
 }
 
@@ -770,11 +783,34 @@ public void OnChickenKill(const char[] output, int caller, int activator, float 
 {
 	Leet_Log("On Chicken Kill.");
 	char name[64];
-	if(!GetClientName(activator, name, sizeof(name)))
+	if(IsClientInGame(activator) && !IsFakeClient(activator)) {
+		GetClientName(activator, name, sizeof(name));
 		PrintToChatAll("%s, otherise known as %s killed a chicken. Not vegan confirmed.", name, g_player_name[activator]);
-	//SetEntPropFloat(caller, Prop_Data, "m_explodeDamage", float(20));
-	//SetEntPropFloat(caller, Prop_Data, "m_explodeRadius", float(10000));
-	//IssuePlayerAward(activator, 100, "Chicken Kill");
+
+		new maxClients = GetMaxClients();
+		new Float:vec[3];
+		GetEntPropVector(caller, Prop_Send, "m_vecOrigin", vec);
+
+		for (new i = 1; i < maxClients; ++i) {
+			if (!IsClientInGame(i) || !IsPlayerAlive(i))
+				continue;
+	
+			Leet_Log("OnChickenKill Loop");
+			new Float:radius = 1000;	
+			new Float:pos[3];
+			GetClientEyePosition(i, pos);
+			new Float:distance = GetVectorDistance(vec, pos);
+			if (distance > radius)
+				continue;
+
+			new damage = 500;
+			damage = RoundToFloor(damage * (radius - distance) / radius);
+			SlapPlayer(i, damage, false);
+		}
+		SetEntPropFloat(caller, Prop_Data, "m_explodeDamage", float(0));
+		SetEntPropFloat(caller, Prop_Data, "m_explodeRadius", float(10));
+		IssuePlayerAward(activator, 100, "Chicken Kill");
+	}
 }
 
 public Action OnSpawnChicken(int client, int args)
