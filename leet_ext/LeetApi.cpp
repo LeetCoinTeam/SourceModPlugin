@@ -51,8 +51,6 @@ bool LeetApi::activatePlayer(const std::string platform_id) {
     
     auto response_body = this->sendRequest(this->generateHeaders(post_body.str()), post_body.str(), this->activate_player);
     
-    std::cout << response_body << std::endl;
-    
     Json::Value json;
     Json::Reader json_reader;
     
@@ -61,7 +59,7 @@ bool LeetApi::activatePlayer(const std::string platform_id) {
         return this->serverInformation.allow_unauthorized;
     }
     
-    if(json["authorization"].asBool()) {
+    if(json["authorization"].asBool() && json["player_authorized"].asBool()) {
         LeetApi::Player player = {
             json["player_btchold"].asUInt64(),
             json["player_name"].asString(),
@@ -76,7 +74,7 @@ bool LeetApi::activatePlayer(const std::string platform_id) {
             json["player_rank"].asInt()
         };
         
-        // Double check this bullshit
+        // Double check this
         if(std::find(this->players.begin(), this->players.end(), player) == this->players.end())
             this->players.push_back(player);
         else
@@ -95,8 +93,6 @@ bool LeetApi::deactivatePlayer(const std::string platform_id) {
     post_body << "nonce=" << seconds_past_epoch << "&platformid=" << platform_id;
     
     auto response_body = this->sendRequest(this->generateHeaders(post_body.str()), post_body.str(), this->deactivate_player);
-    
-    std::cout << response_body << std::endl;
 
     Json::Value json;
     Json::Reader json_reader;
@@ -212,6 +208,7 @@ void LeetApi::onPlayerKill(const std::string killer_platform_id, const std::stri
 
 
 std::string LeetApi::sendRequest(std::list<std::string> headers, std::string post_body, std::string url) {
+    std::cout << "post body: " << post_body << std::endl;
     std::ostringstream os;
     curlpp::options::WriteStream ws(&os);
     try {
@@ -234,7 +231,7 @@ std::string LeetApi::sendRequest(std::list<std::string> headers, std::string pos
     }
     
     // TODO: Catch when there's not a 200 from the server, auth failure
-    
+    std::cout << "response body: " << os.str() << std::endl;
     return os.str();
 }
 
@@ -257,6 +254,10 @@ std::string LeetApi::urlEscape(const std::string unencoded_url) {
     }
     return escaped;
 }
+
+/*int LeetApi::calculateRank() {
+
+}*/
 
 bool LeetApi::Player::operator==(const Player& player) {
     if (this->platform_id == player.platform_id)

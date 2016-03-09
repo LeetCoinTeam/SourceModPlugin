@@ -6,13 +6,16 @@
 
 #define _Leet_included
 
+native bool:Leet_OnPluginLoad(const String:server_api_key[], const String:server_api_secret[]);
+
 /**
- * Digests a string with a given key.
+ * Authenticates a client with Leet on connect.
  *
- * @param key	Key for hmac.
- * @param data  Data (string) to digest.
- * @param buffer Buffer to put digest into.
- * @param maxlen Maximum length of the buffer.
- * @return	The hex digest of the string passed in.
+ * @param steam64
+ * @return	Whether or not the client was authorized.
  */
-native bool:digest_string_with_key_length(const String:key[], const String:data[], String:buffer[], int maxlen, int string_length);
+native bool:Leet_OnClientConnected(const String:steam64[]);
+
+native void:Leet_OnClientDisconnect(const String:steam64[]);
+
+native bool:Leet_OnPlayerKill(const String:killer64[], const String:victim64[]);

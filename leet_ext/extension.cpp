@@ -9,26 +9,29 @@ Leet g_Leet;		/**< Global singleton for extension's main interface */
 
 SMEXT_LINK(&g_Leet);
 
-cell_t digest_string_with_key_length(IPluginContext *pContext, const cell_t *params) {
-	char *key, *data, *buffer;
-	pContext->LocalToString(params[1], &key);
-	pContext->LocalToString(params[2], &data);
-	pContext->LocalToString(params[3], &buffer);
-	unsigned int buffer_size = (unsigned int)params[4];
-	unsigned int str_len = (unsigned int)params[5];
-	unsigned char* digest;
-	digest = HMAC(EVP_sha512(), key, strlen(key), (unsigned char*)data, str_len, NULL, NULL);
+cell_t Leet_OnPluginLoad(IPluginContext *pContext, const cell_t *params) {
+	char *api_key, *api_secret;
+	pContext->LocalToString(params[1], &api_key);
+	pContext->LocalToString(params[2], &api_secret);
+	std::string key(api_key);
+	std::string secret(api_secret);
+	leetApi->setApiKey(key);
+	leetApi->setApiSecret(secret);
+	return leetApi->getServerInformation();
+}
 
-	for(int i = 0; i < 64; i++) {
-		sprintf(&buffer[i*2], "%02x", (unsigned int)digest[i]);	
-	}
-
-	size_t bytes;
-	pContext->StringToLocalUTF8(params[3], params[4], buffer, &bytes);
-	return 1;
+cell_t Leet_OnClientConnected(IPluginContext *pContext, const cell_t *params) {
+	char *steam64;
+	pContext->LocalToString(params[1], &steam64);
+	std::string steam64_string(steam64);
+	if(steam64_string.length() == 0)
+		return 0;
+	return leetApi->activatePlayer(steam64_string);
 }
 
 cell_t Leet_PlayerKilled(IPluginContext *pContext, const cell_t *params) {
+	//pContext->LocalToString(params[3], &buffer);
+	//unsigned int buffer_size = (unsigned int)params[4];
 	/*IPlugin *pPlugin;
 	if (params[5] == BAD_HANDLE)
 	{
@@ -64,7 +67,8 @@ cell_t Leet_PlayerKilled(IPluginContext *pContext, const cell_t *params) {
 
 const sp_nativeinfo_t LeetNatives[] = 
 {
-	{"digest_string_with_key_length", digest_string_with_key_length},
+	{"Leet_OnPluginLoad", Leet_OnPluginLoad},
+	{"Leet_OnClientConnected", Leet_OnClientConnected},
 	{NULL, NULL},
 };
 
