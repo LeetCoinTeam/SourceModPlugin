@@ -179,7 +179,7 @@ class ExtensionConfig(object):
     ]
     cxx.cxxflags += [
       '-std=c++11',
-      '-fno-exceptions',
+      #'-fno-exceptions',
       '-fno-threadsafe-statics',
       '-Wno-non-virtual-dtor',
       '-Wno-overloaded-virtual',
@@ -261,7 +261,9 @@ class ExtensionConfig(object):
 
   def configure_linux(self, cxx):
     cxx.defines += ['_LINUX', 'POSIX']
-    cxx.linkflags += ['-Wl,--exclude-libs,ALL','-L../lib/libssl.a', '-L../lib/libcrypto.a', '-lm', '-lssl', '-lcrypto']
+    # '-L../lib/libssl.a', '-L../lib/libcrypto.a', '-Wl,--exclude-libs,ALL', str(os.getcwd())+'../lib/libLeetApi.a'
+    print "%s" % os.getcwd()
+    cxx.linkflags += ['-lm', '-ljsoncpp', '-lcurlpp', '-lcurl' ,'-lssl', '-lcrypto']
     if cxx.vendor == 'gcc':
       cxx.linkflags += ['-static-libgcc']
     elif cxx.vendor == 'clang':
@@ -282,7 +284,7 @@ class ExtensionConfig(object):
     cxx.defines += ['WIN32', '_WINDOWS']
 	
   def ConfigureForExtension(self, context, compiler):
-    compiler.cxxincludes += [
+    compiler.cxxincludes += ['/usr/local/include', '/usr/include/jsoncpp',
       os.path.join(context.currentSourcePath),
       os.path.join(context.currentSourcePath, 'sdk'),
       os.path.join(self.sm_root, 'public'),

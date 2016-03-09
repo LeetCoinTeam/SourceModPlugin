@@ -6,6 +6,7 @@ projectName = 'Leet'
 # smsdk_ext.cpp will be automatically added later
 sourceFiles = [
   'extension.cpp',
+  'LeetApi.cpp'
 ]
 
 ###############

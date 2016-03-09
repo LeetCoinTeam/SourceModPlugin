@@ -36,6 +36,7 @@ class LeetApi
         bool activatePlayer(const std::string platform_id);
         bool deactivatePlayer(const std::string platform_id);
         bool submitMatchResults();
+        void onPlayerKill(const std::string killer_platform_id, const std::string victim_platform_id);
 
     private:
     

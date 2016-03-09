@@ -1,4 +1,4 @@
-#include "leetapi.h"
+#include "LeetApi.h"
 
 
 LeetApi::LeetApi() {
@@ -200,6 +200,17 @@ bool LeetApi::getServerInformation() {
     return true;
 }
 
+void LeetApi::onPlayerKill(const std::string killer_platform_id, const std::string victim_platform_id) {
+    // Critical section.
+
+    // Find player that killed from player list
+    // Find player that died in player list
+    // Increment and decrement kills and deaths respectively
+
+    return;
+}
+
+
 std::string LeetApi::sendRequest(std::list<std::string> headers, std::string post_body, std::string url) {
     std::ostringstream os;
     curlpp::options::WriteStream ws(&os);
@@ -261,5 +272,7 @@ bool LeetApi::Player::operator==(const Player& player) {
     leetApi->submitMatchResults();
     leetApi->deactivatePlayer("76561197963127789");
     return 0;
+    // g++ -std=c++11 -I/usr/local/include -I/usr/include/jsoncpp LeetApi.cpp -L/usr/local/lib -ljsoncpp -lcurlpp -lcurl -lssl -lcrypto -o leetapi
+
 }*/
 

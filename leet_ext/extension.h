@@ -11,6 +11,7 @@
 #include <string>
 #include <openssl/hmac.h>
 #include <openssl/evp.h>
+#include "LeetApi.h"
 
 class Leet : public SDKExtension
 {
@@ -28,7 +29,7 @@ public:
 	/**
 	 * @brief This is called right before the extension is unloaded.
 	 */
-	//virtual void SDK_OnUnload();
+	virtual void SDK_OnUnload();
 
 	/**
 	 * @brief This is called once all known extensions have been loaded.

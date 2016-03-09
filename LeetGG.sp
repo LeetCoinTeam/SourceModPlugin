@@ -16,53 +16,12 @@
 #define PLUGIN_VERSION	"1.0.0"
 #define PLUGIN_URL		"https://www.leet.gg/"
 
-//#define API_URL			"api-dot-1337coin.appspot.com"
-#define API_URL			"http://apitest-dot-1337coin.appspot.com"
-#define API_URL_BLEED	"apitest-dot-1337coin.appspot.com"
-#define TEST_URL		"https://www.leet.gg/server/view/agpzfjEzMzdjb2luchMLEgZTZXJ2ZXIYgICA9MD-_gsM"
-
-#define API_URL_GET_SERVER_INFO		"/api/get_server_info"
-#define API_URL_ACTIVATE_PLAYER		"/api/activate_player"
-#define API_URL_PUT_MATCH_RESULTS	"/api/put_match_results"
-#define API_URL_ISSUE_AWARD			"/api/issue_award"
-#define API_URL_DEACTIVATE_PLAYER	"/api/deactivate_player"
-
 Handle hConVars[3];
 bool cv_bStatus; 
 char cv_sAPIKey[256];
 char cv_sServerSecret[256];
 
 bool bServerSetup;
-
-//On Server Start
-int g_minimumBTCHold;
-bool g_no_death_penalty;
-bool g_allow_non_authorized_players;
-int g_admissionFee;
-float g_serverRakeBTCPercentage;
-char g_api_version[256];
-int g_incrementBTC;
-float g_leetcoinRakePercentage;
-bool g_authorization;
-
-//On Client Connect
-int g_player_btchold[MAXPLAYERS + 1];
-char g_player_name[MAXPLAYERS + 1][512];
-char g_player_platformid[MAXPLAYERS + 1][64];
-char g_player_key[MAXPLAYERS + 1][128];
-bool g_player_previously_active[MAXPLAYERS + 1];
-int g_player_rank[MAXPLAYERS + 1];
-bool g_player_authorized[MAXPLAYERS + 1];
-char g_default_currency_conversion[MAXPLAYERS + 1][64];
-char g_default_currency_display[MAXPLAYERS + 1][32];
-bool g_authorization_client[MAXPLAYERS + 1];
-
-int kill_reward;
-int rake;
-char iCommunityID[MAXPLAYERS + 1][32];
-int iClientRank[MAXPLAYERS + 1];
-int iStatsKills[MAXPLAYERS + 1];
-int iStatsDeaths[MAXPLAYERS + 1];
 
 public Plugin myinfo = 
 {
@@ -123,26 +82,7 @@ public void OnConfigsExecuted()
 	
 	Leet_Log("Requesting server information...");
 	
-	char sURL[512];
-	Format(sURL, sizeof(sURL), "%s%s", API_URL, API_URL_GET_SERVER_INFO);
-	
-	Handle hRequest = SteamWorks_CreateHTTPRequest(k_EHTTPMethodPOST, sURL);
-	
-	float fTime = float(GetTime());
-	
-	char sTime[128];
-	FloatToString(fTime, sTime, sizeof(sTime));
-	char params[4096];
-	Format(params, sizeof(params), "nonce=%s", sTime);
 
-	SteamWorks_SetHTTPRequestGetOrPostParameter(hRequest, "nonce", sTime);
-	
-	char sHash[2048];
-	digest_string_with_key(cv_sServerSecret, params, sHash, 2048);
-	
-	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Content-type", "application/x-www-form-urlencoded");
-	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Key", cv_sAPIKey);
-	SteamWorks_SetHTTPRequestHeaderValue(hRequest, "Sign", sHash);
 	SteamWorks_SetHTTPCallbacks(hRequest, OnPullingServerInfo);
 	SteamWorks_SendHTTPRequest(hRequest);
 }
