@@ -43,9 +43,7 @@ public void OnPluginStart()
 	HookEvent("round_end", OnRoundEnd);
 	
 	//CreateTimer(30.0, SubmitPlayerInformation, _, TIMER_REPEAT);
-
 	//HookEntityOutput("chicken", "OnBreak", OnChickenKill);
-	
 	AutoExecConfig();
 }
 
@@ -63,107 +61,36 @@ public void OnConfigsExecuted()
 	GetConVarString(hConVars[1], cv_sAPIKey, 256);
 	GetConVarString(hConVars[2], cv_sServerSecret, 256);
 	
-	if (!cv_bStatus)
-	{
+	if (!cv_bStatus) {
 		bServerSetup = false;
 		return;
 	}
 	
-	if (strlen(cv_sAPIKey) == 0 || strlen(cv_sServerSecret) == 0)
-	{
+	if (strlen(cv_sAPIKey) == 0 || strlen(cv_sServerSecret) == 0) {
 		Leet_Log("Error retrieving server information, API key or Server secret is missing.");
 		bServerSetup = false;
 		return;
 	}
 	
 	bServerSetup = Leet_OnPluginLoad(cv_sAPIKey, cv_sServerSecret);	
-
-	//SteamWorks_SetHTTPCallbacks(hRequest, OnPullingServerInfo);
-	//SteamWorks_SendHTTPRequest(hRequest);
-}
-
-public int OnPullingServerInfo(Handle hRequest, bool bFailure, bool bRequestSuccessful, EHTTPStatusCode eStatusCode)
-{
-	if (bFailure || !bRequestSuccessful)
-	{
-		bServerSetup = false;
-		Leet_Log("Error retrieving server information. Error code: %i", view_as<int>(eStatusCode));
-		return;
-	}
-	
-	
-	Leet_Log("Server information retrieval successful.");
-	bServerSetup = true;
 }
 
 public void OnClientAuthorized(int client, const char[] sAuth)
 {
-	// Exit if the server isn't set up or the plugin is turned off
 	if (!cv_bStatus || !bServerSetup)
-		return;
-	
-	char sAuthID[128];
-	GetClientAuthId(client, AuthId_SteamID64, sAuthID, sizeof(sAuthID));
-	
-	Leet_OnClientConnected(sAuthID);
-	
-	//SteamWorks_SetHTTPCallbacks(hRequest, OnPullingClientInfo);
-}
+		return;	
 
-public int OnPullingClientInfo(Handle hRequest, bool bFailure, bool bRequestSuccessful, EHTTPStatusCode eStatusCode, any data1)
-{
-	int client = GetClientOfUserId(data1);
-	
-	if (client < 1)
-	{
-		Leet_Log("Error retrieving client information, client index is invalid.");
-		return;
-	}
-	
-	if (bFailure || !bRequestSuccessful)
-	{
-		Leet_Log("Error retrieving client information for %L. Error code: %i", client, view_as<int>(eStatusCode));
-		return;
-	}
-	
-	/*if (g_authorization && !g_player_authorized[client])
-	{
-		KickClient(client, "You are not authorized to join this server.");
-	} */
-	
-	Leet_Log("Client '%N' information retrieval successful.", client);
+	Leet_OnClientConnected(client);
 }
 
 public void OnClientDisconnect(int client)
 {
-
-	Leet_Log("On client disconnect.");
-
 	if (!cv_bStatus || !bServerSetup)
-	{
 		return;
-	}
-	
+
+	Leet_OnClientDisconnected(client);
 }
 
-public int OnDeactivatingPlayer(Handle hRequest, bool bFailure, bool bRequestSuccessful, EHTTPStatusCode eStatusCode, any data1)
-{
-	int client = GetClientOfUserId(data1);
-	
-	if (client < 1)
-	{
-		Leet_Log("Error deactivating client, client index is invalid.");
-		return;
-	}
-	
-	if (bFailure || !bRequestSuccessful)
-	{
-		Leet_Log("Error deactivating client for %L. Error code: %i", client, view_as<int>(eStatusCode));
-		return;
-	}
-	
-	Leet_Log("Client '%N' deactivation successful.", client);
-}
 
 public void OnPlayerDeath(Handle event, const char[] name, bool dontBroadcast)
 {
@@ -173,31 +100,9 @@ public void OnPlayerDeath(Handle event, const char[] name, bool dontBroadcast)
 	int client = GetClientOfUserId(GetEventInt(event, "userid"));
 	int attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
 	
-	// TODO: Need to check if it was an entity that killed the player
 	if (client != attacker)
 	{
-		/*if (g_player_authorized[client] && g_player_authorized[attacker])
-		{
-			g_player_btchold[attacker] += kill_reward;
-			Leet_Log("kill_reward : %i\n", kill_reward);
-			
-			if (!g_no_death_penalty) {
-				g_player_btchold[client] -= (kill_reward + rake);
-				Leet_Log("Rake: %f\n", rake);
-			}
-			
-			CalculateEloRank(attacker, client, false);
-			
-			if (g_player_btchold[client] < g_minimumBTCHold)
-				KickClient(client, "Your balance is too low to continue playing.  Go to leet.gg to add more btc to your server hold.");
-			
-			PrintToChatAll("%N earned: %i Satoshi for killing %N", attacker, kill_reward, client);
-			SubmitKill(attacker, client);
-			
-		}
-		
-		iStatsKills[attacker]++;
-		iStatsDeaths[client]++; */
+
 	}
 	
 }
@@ -243,20 +148,11 @@ public int OnSubmittingMatchResults(Handle hRequest, bool bFailure, bool bReques
 		char sBuffer2[1024];
 		json_string_value(hSteamID, sBuffer2, sizeof(sBuffer2));
 		
-		int retrieve = CheckAgainstCommunityID(sBuffer2);
+		//int retrieve = CheckAgainstCommunityID(sBuffer2);
 		
 		if (retrieve > 0)
 			KickClient(retrieve, "Please go to Leet.gg and register for the server.");
 	}*/
-}
-
-int CheckAgainstCommunityID(const char[] sCommunityID)
-{
-	for (int i = 1; i <= MaxClients; i++)
-		if (IsClientInGame(i) && !IsFakeClient(i))
-			if (strcmp(iCommunityID[i], sCommunityID))
-				return i;
-	return 0;
 }
 
 void IssuePlayerAward(int client, int amount, const char[] sReason)
@@ -264,22 +160,6 @@ void IssuePlayerAward(int client, int amount, const char[] sReason)
 	if (!cv_bStatus || !bServerSetup)
 		return;
 	
-}
-
-
-
-public int OnIssueAward(Handle hRequest, bool bFailure, bool bRequestSuccessful, EHTTPStatusCode eStatusCode, any data1)
-{
-	if (bFailure || !bRequestSuccessful)
-	{
-		//Leet_Log("Error issuing a reward to the client '%L'. Error code: %i", client, view_as<int>(eStatusCode));
-		//Leet_Log("Error issuing a reward to the client Error code: %i", view_as<int>(eStatusCode));
-		#if defined DEBUG
-		//Leet_DebugLog("Pulling client rewards issued failure for %L:\n-bFailure = %s\n-bRequestSuccessful = %s\n-eStatusCode = %i", client, bFailure ? "True" : "False", bRequestSuccessful ? "True" : "False", view_as<int>(eStatusCode));
-		#endif
-		return;
-	}
-		
 }
 
 public void OnEntityCreated(int entity, const char[] sClassname)

@@ -56,7 +56,7 @@ bool LeetApi::activatePlayer(const std::string platform_id) {
     
     if(!json_reader.parse(response_body, json, false)) {
         std::cout << "Failed to parse json from server." << std::endl;
-        return this->serverInformation.allow_unauthorized;
+        return this->server_information_.allow_unauthorized;
     }
     
     if(json["authorization"].asBool() && json["player_authorized"].asBool()) {
@@ -74,14 +74,18 @@ bool LeetApi::activatePlayer(const std::string platform_id) {
             json["player_rank"].asInt()
         };
         
+        std::lock_guard<std::mutex> lock(this->player_list_guard_);
         // Double check this
-        if(std::find(this->players.begin(), this->players.end(), player) == this->players.end())
+        if(std::find(this->players.begin(), this->players.end(), player) == this->players.end()) {
+            // subtract admission fee
+            player.btc_hold -= this->server_information_.admission_fee;
             this->players.push_back(player);
+        }
         else
             std::cout << "Player already in player list." << std::endl;
     } else {
         std::cout << "Failed to authorize with server." << std::endl;
-        return this->serverInformation.allow_unauthorized;
+        return this->server_information_.allow_unauthorized;
     }
     
     return true;
@@ -99,9 +103,11 @@ bool LeetApi::deactivatePlayer(const std::string platform_id) {
     
     if(!json_reader.parse(response_body, json, false)) {
         std::cout << "Failed to parse json from server." << std::endl;
-        return this->serverInformation.allow_unauthorized;
+        return this->server_information_.allow_unauthorized;
     }
-    
+
+    std::lock_guard<std::mutex> lock(this->player_list_guard_);
+
     if(json["authorization"].asBool()) {
         auto player = std::find_if(this->players.begin(), this->players.end(), [platform_id] (LeetApi::Player const& p) { return p.platform_id == platform_id; });
         
@@ -110,22 +116,25 @@ bool LeetApi::deactivatePlayer(const std::string platform_id) {
             player->previously_active = json["player_previously_active"].asBool();
             player->authorized = json["player_authorized"].asBool();
         } else {
-            std::cout << "Could not find player in the list." << std::endl;
+            std::cout << "Could not find player in the authorized list." << std::endl;
         }
         
     } else {
         std::cout << "Failed to authorize with server." << std::endl;
-        return this->serverInformation.allow_unauthorized;
+        return this->server_information_.allow_unauthorized;
     }
     
     return true;
 }
 
-bool LeetApi::submitMatchResults() {
+std::list<std::string> LeetApi::submitMatchResults() {
+    std::list<std::string> kick_users;
     std::stringstream post_body;
     time_t seconds_past_epoch = time(0);
     post_body << "nonce=" << seconds_past_epoch << "&map_title=Testerino";
     
+    std::lock_guard<std::mutex> lock(this->player_list_guard_);
+
     Json::Value player_dict;
     for(auto iter = this->players.begin(); iter != this->players.end(); ++iter)
         player_dict.append(iter->to_json());
@@ -133,10 +142,29 @@ bool LeetApi::submitMatchResults() {
     post_body << "&player_dict_list=" << this->urlEscape(player_dict.toStyledString());
     
     auto response_body = this->sendRequest(this->generateHeaders(post_body.str()), post_body.str(), this->put_match_results);
+
+    Json::Value json;
+    Json::Reader json_reader;
     
-    std::cout << response_body << std::endl;
+    if(!json_reader.parse(response_body, json, false)) {
+        std::cout << "Failed to parse json from server." << std::endl;
+        return kick_users;
+    }
+
+    if(json["authorization"].asBool()) {
+        for (auto itr : json["playersToKick"])
+            kick_users.push_back(itr.asString());
+    }
     
-    return true;
+    for(auto iter = this->players.begin(); iter != this->players.end(); ++iter) {
+        iter->kills = 0;
+        iter->deaths = 0;
+        // Removed deauth / unauthed players
+        if(!iter->authorized)
+            iter = this->players.erase(iter);
+    }
+
+    return kick_users;
 }
 
 Json::Value LeetApi::Player::to_json() {
@@ -146,7 +174,10 @@ Json::Value LeetApi::Player::to_json() {
     value["kills"] = this->kills;
     value["name"] = this->name;
     value["rank"] = this->player_rank;
-    value["weapon"] = "N/A";
+    if(this->weapon.length() == 0)
+        value["weapon"] = "N/A";
+    else
+        value["weapon"] = this->weapon;
     return value;
 }
 
@@ -178,7 +209,7 @@ bool LeetApi::getServerInformation() {
     }
     
     if(json["authorization"].asBool()) {
-        this->serverInformation = {
+        this->server_information_ = {
             json["minimumBTCHold"].asUInt64(),
             !json["no_death_penalty"].asBool(),
             json["allow_non_authorized_player"].asBool(),
@@ -196,14 +227,48 @@ bool LeetApi::getServerInformation() {
     return true;
 }
 
-void LeetApi::onPlayerKill(const std::string killer_platform_id, const std::string victim_platform_id) {
+bool LeetApi::onPlayerKill(const std::string killer_platform_id, const std::string victim_platform_id) {
     // Critical section.
+    std::lock_guard<std::mutex> lock(this->player_list_guard_);
 
     // Find player that killed from player list
-    // Find player that died in player list
-    // Increment and decrement kills and deaths respectively
+    auto killer = std::find_if(this->players.begin(), this->players
+        .end(), [killer_platform_id] (LeetApi::Player const& p) { return p.platform_id == killer_platform_id; });
+    if(killer == this->players.end()) {
+        std::cout << "Couldn't find the killer in the player list." << std::endl;
+    }
 
-    return;
+    // Find player that died in player list
+    auto victim = std::find_if(this->players.begin(), this->players.end(), [victim_platform_id] (LeetApi::Player const& p) { return p.platform_id == victim_platform_id; });
+    if(victim == this->players.end()) {
+        std::cout << "Couldn't find the killer in the player list." << std::endl;
+    }
+
+    if(!victim->authorized) {
+        std::cout << "Victim not authorized, kill not recorded." << std::endl;
+        return 0; 
+    }
+
+    if(!killer->authorized) {
+        std::cout << "Killer not authorized, kill not recorded." << std::endl;
+        return 0; 
+    }
+
+    // Increment and decrement kills and deaths respectively
+    killer->kills++;
+    victim->deaths++;
+
+    killer->btc_hold += (-1.0 * (this->server_information_.server_rake_percentage + this->server_information_.leetcoin_rake_percentage) * this->server_information_.increment_btc)
+        + this->server_information_.increment_btc;
+
+    if(this->server_information_.death_penalty)
+        victim->btc_hold -= this->server_information_.increment_btc;
+
+    // ELO
+    this->calculateRank(&*killer, &*victim);
+
+    // TODO: Kick if necessary and dauth
+    return (victim->btc_hold < this->server_information_.minimum_btc_hold);
 }
 
 
@@ -255,14 +320,43 @@ std::string LeetApi::urlEscape(const std::string unencoded_url) {
     return escaped;
 }
 
-/*int LeetApi::calculateRank() {
+void LeetApi::calculateRank(LeetApi::Player *killer, LeetApi::Player *victim) {
+    std::cout << "Old killer rank: " << killer->player_rank << " old victim rank: " << victim->player_rank;
 
-}*/
+    int difference = killer->player_rank - victim->player_rank;
+    double exponent = (difference*-1.0)/400.00;
+    double odds = (1/(1 + std::pow(10, exponent)));
+
+    int k;
+    if(killer->player_rank < 2100)
+        k = 32;
+    else if(killer->player_rank >= 2100 && killer->player_rank < 2400)
+        k = 24;
+    else
+        k = 16;
+
+    int new_winner_rank = std::round(killer->player_rank + (k * (1 - odds)));
+
+    if(this->server_information_.death_penalty)
+        victim->player_rank -= (new_winner_rank - killer->player_rank);
+    
+    if(victim->player_rank < 1)
+        victim->player_rank = 1;
+
+    killer->player_rank = new_winner_rank;
+
+    std::cout << "New killer rank: " << killer->player_rank << " new victim rank: " << victim->player_rank;
+    return;
+}
 
 bool LeetApi::Player::operator==(const Player& player) {
     if (this->platform_id == player.platform_id)
         return true;
     return false;
+}
+
+bool LeetApi::getAllowUnauthorized() {
+    return this->server_information_.allow_unauthorized;
 }
 
 /*int main ()

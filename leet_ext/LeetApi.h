@@ -9,6 +9,7 @@
 #include <curlpp/cURLpp.hpp>
 #include <curlpp/Easy.hpp>
 #include <curlpp/Options.hpp>
+#include <mutex>
 #include <openssl/hmac.h>
 #include <openssl/evp.h>
 #include <json/json.h>
@@ -35,8 +36,9 @@ class LeetApi
         bool getServerInformation();
         bool activatePlayer(const std::string platform_id);
         bool deactivatePlayer(const std::string platform_id);
-        bool submitMatchResults();
-        void onPlayerKill(const std::string killer_platform_id, const std::string victim_platform_id);
+        std::list<std::string> submitMatchResults();
+        bool onPlayerKill(const std::string killer_platform_id, const std::string victim_platform_id);
+        bool getAllowUnauthorized();
 
     private:
     
@@ -65,17 +67,20 @@ class LeetApi
                 int kills;
                 int deaths;
                 int player_rank;
+                std::string weapon;
                 bool operator==(const Player& player);
                 Json::Value to_json();
   		};
 
   		std::string api_key_;
   		std::string api_secret_;
+        std::mutex player_list_guard_;
         std::string keyHeader();
         std::list<std::string> generateHeaders(const std::string param_string);
   		std::list<LeetApi::Player> players;
-        LeetApi::ServerInformation serverInformation;
+        LeetApi::ServerInformation server_information_;
         std::string sendRequest(std::list<std::string> headers, std::string post_body, std::string url);
+        void calculateRank(LeetApi::Player *killer, LeetApi::Player *victim);
 
 };
 

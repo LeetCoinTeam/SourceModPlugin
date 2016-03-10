@@ -11,6 +11,7 @@
 #include <string>
 #include <openssl/hmac.h>
 #include <openssl/evp.h>
+#include <thread>
 #include "LeetApi.h"
 
 class Leet : public SDKExtension

@@ -16,6 +16,8 @@ native bool:Leet_OnPluginLoad(const String:server_api_key[], const String:server
  */
 native bool:Leet_OnClientConnected(const String:steam64[]);
 
-native void:Leet_OnClientDisconnect(const String:steam64[]);
+native bool:Leet_OnClientDisconnected(const String:steam64[]);
 
 native bool:Leet_OnPlayerKill(const String:killer64[], const String:victim64[]);
+
+native bool:Leet_OnRoundEnd();
