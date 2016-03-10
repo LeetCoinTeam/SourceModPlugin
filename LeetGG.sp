@@ -6,9 +6,6 @@
 #include <SteamWorks>
 #include <Leet>
 
-//Uncomment to enable debug mode.
-#define DEBUG
-
 #define PLUGIN_NAME		"Leet GG"
 #define PLUGIN_AUTHOR	"Leetcoin Team"
 #define PLUGIN_DES		"The official Leet.gg plugin for Sourcemod. This plugin takes advantage of our native API."
@@ -52,6 +49,8 @@ public Action OnRoundEnd(Event event, const char[] name, bool dontBroadcast) {
 		if (IsClientInGame(i) && !IsFakeClient(i))
 			// PrintToChat(i, "Your current balance is: %i satoshi.", g_player_btchold[i]);
 			PrintToChat(i, "Your current balance is: geese satoshi.");
+
+	Leet_OnRoundEnd();
 	return Plugin_Continue;
 }
 
@@ -97,14 +96,10 @@ public void OnPlayerDeath(Handle event, const char[] name, bool dontBroadcast)
 	if (!cv_bStatus || !bServerSetup)
 		return;
 	
-	int client = GetClientOfUserId(GetEventInt(event, "userid"));
+	int victim = GetClientOfUserId(GetEventInt(event, "userid"));
 	int attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
 	
-	if (client != attacker)
-	{
-
-	}
-	
+	Leet_OnPlayerKill(attacker, victim);
 }
 
 public Action OnClientSayCommand(int client, const char[] command, const char[] sArgs)
@@ -116,43 +111,6 @@ public Action OnClientSayCommand(int client, const char[] command, const char[] 
  		return Plugin_Handled;
 	}
 	return Plugin_Continue;
-}
-
-public Action SubmitPlayerInformation(Handle timer, any data)
-{
-	if (!cv_bStatus || !bServerSetup)
-	{
-		return Plugin_Continue;
-	}
-	
-	char sMapname[64];
-	GetCurrentMap(sMapname, sizeof(sMapname));
-	
-	return Plugin_Continue;
-}
-
-public int OnSubmittingMatchResults(Handle hRequest, bool bFailure, bool bRequestSuccessful, EHTTPStatusCode eStatusCode)
-{
-	if (bFailure || !bRequestSuccessful)
-	{
-		Leet_Log("Error submitting match results. Error code: %i", view_as<int>(eStatusCode));
-		return;
-	}
-	
-	/*Handle hJSON = json_load(sBuffer);
-	
-	for (int i = 0; i < json_array_size(hJSON); i++)
-	{
-		Handle hSteamID = json_array_get(hJSON, i);
-		
-		char sBuffer2[1024];
-		json_string_value(hSteamID, sBuffer2, sizeof(sBuffer2));
-		
-		//int retrieve = CheckAgainstCommunityID(sBuffer2);
-		
-		if (retrieve > 0)
-			KickClient(retrieve, "Please go to Leet.gg and register for the server.");
-	}*/
 }
 
 void IssuePlayerAward(int client, int amount, const char[] sReason)

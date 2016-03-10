@@ -116,7 +116,7 @@ bool LeetApi::deactivatePlayer(const std::string platform_id) {
             player->previously_active = json["player_previously_active"].asBool();
             player->authorized = json["player_authorized"].asBool();
         } else {
-            std::cout << "Could not find player in the authorized list." << std::endl;
+            std::cout << "Could not deauth player because they weren't found in the authorized list." << std::endl;
         }
         
     } else {
@@ -134,6 +134,10 @@ std::list<std::string> LeetApi::submitMatchResults() {
     post_body << "nonce=" << seconds_past_epoch << "&map_title=Testerino";
     
     std::lock_guard<std::mutex> lock(this->player_list_guard_);
+    // If there is no player list let's just return
+    if(this->players.length() == 0) {
+        return kick_users;
+    }
 
     Json::Value player_dict;
     for(auto iter = this->players.begin(); iter != this->players.end(); ++iter)
@@ -147,10 +151,11 @@ std::list<std::string> LeetApi::submitMatchResults() {
     Json::Reader json_reader;
     
     if(!json_reader.parse(response_body, json, false)) {
-        std::cout << "Failed to parse json from server." << std::endl;
+        std::cout << "Failed to parse json from server when submitting match results." << std::endl;
         return kick_users;
     }
 
+    // TODO: This needs testing
     if(json["authorization"].asBool()) {
         for (auto itr : json["playersToKick"])
             kick_users.push_back(itr.asString());
@@ -182,7 +187,6 @@ Json::Value LeetApi::Player::to_json() {
 }
 
 std::list<std::string> LeetApi::generateHeaders(const std::string param_string) {
-    // TODO: Add nonce
     std::list<std::string> headers;
     headers.push_back(this->content_type_header);
     headers.push_back(this->keyHeader());
