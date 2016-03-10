@@ -68,8 +68,10 @@ cell_t Leet_OnClientConnected(IPluginContext *pContext, const cell_t *params) {
 	std::string steam64(steam64_stream.str());
 	if(steam64.length() <= 1) {
 		std::cout << "Tryed to register bot or entity on Leet." << std::endl;
-		if(!leetApi->getAllowUnauthorized()) {
+		if(leetApi->getAllowUnauthorized()) {
+			std::cout << "Goodbye Bot :)" << std::endl;
 			pPlayer->Kick("Goodbye Bot :)");
+			return 0;
 		}
 	}
 	pool.enqueue(GetClientInformation, steam64, pPlayer);
@@ -88,7 +90,7 @@ cell_t Leet_OnClientDisconnected(IPluginContext *pContext, const cell_t *params)
 
 	std::string steam64(steam64_stream.str());
 	if(steam64.length() <= 1) {
-		std::cout << "Tryed to register bot or entity on Leet." << std::endl;
+		std::cout << "Tryed to unregister bot or entity on Leet." << std::endl;
 		return leetApi->getAllowUnauthorized();
 	}
 
@@ -146,7 +148,7 @@ cell_t Leet_GetBalance(IPluginContext *pContext, const cell_t *params) {
 	player_stream << "Your balance is " << balance << " satoshi." << std::endl;
 
 	gamehelpers->TextMsg(player, TEXTMSG_DEST_NOTIFY, player_stream.str().c_str());
-	
+
 	return 0;
 }
 
