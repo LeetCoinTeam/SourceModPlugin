@@ -129,6 +129,27 @@ cell_t Leet_OnRoundEnd(IPluginContext *pContext, const cell_t *params) {
 	return 0;
 }
 
+cell_t Leet_GetBalance(IPluginContext *pContext, const cell_t *params) {
+	unsigned int player;
+	player = (unsigned int)params[1];
+
+	IGamePlayer *pPlayer = playerhelpers->GetGamePlayer(player);
+
+	std::ostringstream player_stream;
+	player_stream << pPlayer->GetSteamId64();
+
+	uint64_t balance = leetApi->getBalance(player_stream.str());
+
+	player_stream.str("");
+	player_stream.clear();
+
+	player_stream << "Your balance is " << balance << " satoshi." << std::endl;
+
+	gamehelpers->TextMsg(player, TEXTMSG_DEST_NOTIFY, player_stream.str().c_str());
+	
+	return 0;
+}
+
 const sp_nativeinfo_t LeetNatives[] = 
 {
 	{"Leet_OnPluginLoad", Leet_OnPluginLoad},
@@ -136,6 +157,7 @@ const sp_nativeinfo_t LeetNatives[] =
 	{"Leet_OnClientDisconnected", Leet_OnClientDisconnected},
 	{"Leet_OnPlayerKill", Leet_OnPlayerKill},
 	{"Leet_OnRoundEnd", Leet_OnRoundEnd},
+	{"Leet_GetBalance", Leet_GetBalance},
 	{NULL, NULL},
 };
 

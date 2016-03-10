@@ -106,8 +106,7 @@ public Action OnClientSayCommand(int client, const char[] command, const char[] 
 {
 	if (strcmp(sArgs, "balance", false) == 0 || strcmp(sArgs, "!balance", false) == 0)
 	{
-		//PrintToChat(client, "Your current balance is: %i satoshi.", g_player_btchold[client]);
-		PrintToChat(client, "Your current balance is: goose satoshi.");
+		Leet_GetBalance(client);
  		return Plugin_Handled;
 	}
 	return Plugin_Continue;
@@ -117,7 +116,6 @@ void IssuePlayerAward(int client, int amount, const char[] sReason)
 {
 	if (!cv_bStatus || !bServerSetup)
 		return;
-	
 }
 
 public void OnEntityCreated(int entity, const char[] sClassname)

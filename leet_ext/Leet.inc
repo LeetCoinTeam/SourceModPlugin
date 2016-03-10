@@ -21,3 +21,5 @@ native bool:Leet_OnClientDisconnected(int player);
 native bool:Leet_OnPlayerKill(const int killer, const int victim);
 
 native bool:Leet_OnRoundEnd();
+
+native bool:Leet_GetBalance(const int player);

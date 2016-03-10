@@ -39,6 +39,7 @@ class LeetApi
         std::list<std::string> submitMatchResults();
         bool onPlayerKill(const std::string killer_platform_id, const std::string victim_platform_id);
         bool getAllowUnauthorized();
+        uint64_t getBalance(std::string platform_id);
 
     private:
     

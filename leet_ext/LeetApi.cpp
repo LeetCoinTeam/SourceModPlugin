@@ -134,8 +134,8 @@ std::list<std::string> LeetApi::submitMatchResults() {
     post_body << "nonce=" << seconds_past_epoch << "&map_title=Testerino";
     
     std::lock_guard<std::mutex> lock(this->player_list_guard_);
-    // If there is no player list let's just return
-    if(this->players.length() == 0) {
+    // If there is no player list let's just return, TODO: this doesn't scale well.
+    if(this->players.size() == 0) {
         return kick_users;
     }
 
@@ -273,6 +273,21 @@ bool LeetApi::onPlayerKill(const std::string killer_platform_id, const std::stri
 
     // TODO: Kick if necessary and dauth
     return (victim->btc_hold < this->server_information_.minimum_btc_hold);
+}
+
+uint64_t LeetApi::getBalance(std::string platform_id) {
+    // Critical section.
+    std::lock_guard<std::mutex> lock(this->player_list_guard_);
+
+    auto player = std::find_if(this->players.begin(), this->players
+        .end(), [platform_id] (LeetApi::Player const& p) { return p.platform_id == platform_id; });
+
+    if(player == this->players.end()) {
+        std::cout << "Couldn't find the killer in the player list." << std::endl;
+        return 0;
+    }
+
+    return player->btc_hold;
 }
 
 
