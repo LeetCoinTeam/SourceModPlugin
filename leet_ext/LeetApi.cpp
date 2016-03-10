@@ -165,8 +165,10 @@ std::list<std::string> LeetApi::submitMatchResults() {
         iter->kills = 0;
         iter->deaths = 0;
         // Removed deauth / unauthed players
-        if(!iter->authorized)
+        if(!iter->authorized) {
+            std::cout << "Removed " << iter->name << " from the server." << std::endl;
             iter = this->players.erase(iter);
+        }
     }
 
     return kick_users;
@@ -231,7 +233,7 @@ bool LeetApi::getServerInformation() {
     return true;
 }
 
-bool LeetApi::onPlayerKill(const std::string killer_platform_id, const std::string victim_platform_id) {
+bool LeetApi::onPlayerKill(const std::string killer_platform_id, const std::string killer_weapon, const std::string victim_platform_id, const std::string victim_weapon) {
     // Critical section.
     std::lock_guard<std::mutex> lock(this->player_list_guard_);
 
@@ -257,6 +259,9 @@ bool LeetApi::onPlayerKill(const std::string killer_platform_id, const std::stri
         std::cout << "Killer not authorized, kill not recorded." << std::endl;
         return 0; 
     }
+
+    killer->weapon = killer_weapon;
+    victim->weapon = victim_weapon;
 
     // Increment and decrement kills and deaths respectively
     killer->kills++;

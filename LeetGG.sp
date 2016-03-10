@@ -47,8 +47,7 @@ public void OnPluginStart()
 public Action OnRoundEnd(Event event, const char[] name, bool dontBroadcast) {
 	for (int i = 1; i <= MaxClients; i++)
 		if (IsClientInGame(i) && !IsFakeClient(i))
-			// PrintToChat(i, "Your current balance is: %i satoshi.", g_player_btchold[i]);
-			PrintToChat(i, "Your current balance is: geese satoshi.");
+			Leet_GetBalance(i);
 
 	Leet_OnRoundEnd();
 	return Plugin_Continue;
