@@ -59,8 +59,9 @@ bool LeetApi::activatePlayer(const std::string platform_id) {
         return this->server_information_.allow_unauthorized;
     }
     
+    LeetApi::Player player;
     if(json["authorization"].asBool() && json["player_authorized"].asBool()) {
-        LeetApi::Player player = {
+        player = {
             json["player_btchold"].asUInt64(),
             json["player_name"].asString(),
             json["player_platformid"].asString(),
@@ -75,14 +76,20 @@ bool LeetApi::activatePlayer(const std::string platform_id) {
         };
         
         std::lock_guard<std::mutex> lock(this->player_list_guard_);
+
         // Double check this
-        if(std::find(this->players.begin(), this->players.end(), player) == this->players.end()) {
+        auto found_player = std::find(this->players.begin(), this->players.end(), player);
+
+        if(found_player == this->players.end()) {
             // subtract admission fee
             player.btc_hold -= this->server_information_.admission_fee;
             this->players.push_back(player);
         }
-        else
+        else {
             std::cout << "Player already in player list." << std::endl;
+            found_player->authorized = player.authorized;
+            found_player->previously_active = player.previously_active;
+        }
     } else {
         std::cout << "Failed to authorize with server." << std::endl;
         return this->server_information_.allow_unauthorized;

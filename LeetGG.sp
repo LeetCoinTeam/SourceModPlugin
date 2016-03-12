@@ -38,10 +38,16 @@ public void OnPluginStart()
 	
 	HookEvent("player_death", OnPlayerDeath, EventHookMode_Post);
 	HookEvent("round_end", OnRoundEnd);
+	HookEvent("player_connect_client", OnPlayerConnect, EventHookMode_Post);
 	
-	//CreateTimer(30.0, SubmitPlayerInformation, _, TIMER_REPEAT);
+	CreateTimer(30.0, OnRoundEnd, _, TIMER_REPEAT);
 	//HookEntityOutput("chicken", "OnBreak", OnChickenKill);
 	AutoExecConfig();
+}
+
+public Action OnPlayerConnect(Event event, const char[] name, bool dontBroadcast) {
+	int client = GetClientOfUserId(GetEventInt(event, "userid"));
+	Leet_OnClientConnected(client);
 }
 
 public Action OnRoundEnd(Event event, const char[] name, bool dontBroadcast) {
@@ -73,13 +79,14 @@ public void OnConfigsExecuted()
 	bServerSetup = Leet_OnPluginLoad(cv_sAPIKey, cv_sServerSecret);	
 }
 
-public void OnClientAuthorized(int client, const char[] sAuth)
+/*public void OnClientAuthorized(int client, const char[] sAuth)
 {
 	if (!cv_bStatus || !bServerSetup)
 		return;	
 
 	Leet_OnClientConnected(client);
-}
+} */
+
 
 public void OnClientDisconnect(int client)
 {

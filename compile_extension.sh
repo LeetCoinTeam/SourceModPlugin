@@ -11,3 +11,4 @@ ambuild
 cd ../../../../../
 cp alliedmodders/sourcemod/public/leet_ext/build/Leet.ext.2.csgo/Leet.ext.2.csgo.so steamcmd/csgo/csgo/addons/sourcemod/extensions/
 cp ./leet_ext/Leet.inc alliedmodders/sourcemod/build/package/addons/sourcemod/scripting/include/
+cp alliedmodders/sourcemod/public/leet_ext/build/Leet.ext.2.tf2/Leet.ext.2.tf2.so steamcmd/tf2/tf/addons/sourcemod/extensions/

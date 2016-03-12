@@ -35,7 +35,7 @@ void DeactivateClient(const std::string steam64, IGamePlayer *pPlayer) {
 }
 
 void ReportKill(IGamePlayer *pKiller, IGamePlayer *pVictim) {
-	std::ostringstream killer_stream, victim_stream;
+	std::ostringstream killer_stream, victim_stream, player_stream;
 
 	killer_stream << pKiller->GetSteamId64();
 	victim_stream << pVictim->GetSteamId64();
@@ -49,6 +49,18 @@ void ReportKill(IGamePlayer *pKiller, IGamePlayer *pVictim) {
 	std::string victim_weapon("N/A");
 
 	bool kick_victim = leetApi->onPlayerKill(killer_stream.str(), killer_weapon, victim_stream.str(), victim_weapon);
+
+	// Get Killer Balance and Message
+	uint64_t balance = leetApi->getBalance(killer_stream.str());
+	player_stream << "Your balance is " << balance << " satoshi." << std::endl;
+	gamehelpers->TextMsg(pKiller->GetUserId(), TEXTMSG_DEST_CHAT, killer_stream.str().c_str());
+
+	// Get Vicitim Balance and Message
+	uint64_t balance = leetApi->getBalance(victim_stream.str());
+	player_stream.str("");
+	player_stream.clear();
+	player_stream << "Your balance is " << balance << " satoshi." << std::endl;
+	gamehelpers->TextMsg(pVictim->GetUserId(), TEXTMSG_DEST_CHAT, victim_stream.str().c_str());
 
 	if(kick_victim) {
 		pVictim->Kick("Your balance is too low. Go to Leet.gg and re-up.");
